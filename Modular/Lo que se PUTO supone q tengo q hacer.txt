@@ -1,0 +1,2 @@
+Registrar usuario (huella y id)
+Ver sus citas

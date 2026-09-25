@@ -1,0 +1,17 @@
+Datos y agendar citas: trabajador
+
+Dieta y próximas citas: paciente
+
+Que todo esté en un mismo equipo 
+
+Hacerlo en un ejecutable
+
+Calculadora de formulas nutrición
+
+Agregar cuadro de recomendaciones de paciente
+
+Automatizar la calc. con datos del paciente
+
+Agregar botones de ver dietas y agendar consulta (fechas personalizadas) 
+
+Parte usuario: va tener las próximas citas puestas por trabajador, su plan alimenticio con opción de equivalencias (alternativas de comida), progreso dieta

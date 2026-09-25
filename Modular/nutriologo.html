@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Panel del Nutriologo</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="nutriologo.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+
+<!-- 🔐 Login overlay -->
+<div id="loginOverlay" class="login-overlay">
+  <div class="login-card">
+    <h2>Acceso al Panel del Nutriólogo</h2>
+    <p class="login-subtitle">Ingrese sus credenciales de administrador</p>
+    <div id="loginError" class="login-error" style="display:none;"></div>
+    <input type="text" id="loginUser" placeholder="Usuario" autocomplete="off">
+    <input type="password" id="loginPass" placeholder="Contraseña">
+    <button onclick="doLogin()" class="btn-guardar">Ingresar</button>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SIDEBAR DE NAVEGACION -->
+<!-- ============================================================ -->
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <h2>Nutriologia</h2>
+  </div>
+  <ul class="sidebar-menu">
+    <li class="sidebar-item active" data-seccion="pacientes" onclick="navegarA('pacientes')">
+      <span class="sidebar-icon">&#128100;</span> Pacientes
+    </li>
+    <li class="sidebar-item" data-seccion="agenda" onclick="navegarA('agenda')">
+      <span class="sidebar-icon">&#128197;</span> Agenda de Citas
+    </li>
+    <li class="sidebar-item" data-seccion="peso" onclick="navegarA('peso')">
+      <span class="sidebar-icon">&#128200;</span> Seguimiento de Peso
+    </li>
+    <li class="sidebar-item" data-seccion="dietas" onclick="navegarA('dietas')">
+      <span class="sidebar-icon">&#127860;</span> Planes Alimenticios
+    </li>
+    <li class="sidebar-item" data-seccion="ia" onclick="navegarA('ia')">
+      <span class="sidebar-icon">&#129302;</span> Recomendacion con IA
+    </li>
+    <li class="sidebar-item" data-seccion="historial" onclick="navegarA('historial')">
+      <span class="sidebar-icon">&#128203;</span> Historial Clinico
+    </li>
+    <li class="sidebar-divider"></li>
+    <li class="sidebar-item sidebar-logout" onclick="cerrarSesionNutriologo()">
+      <span class="sidebar-icon">&#128682;</span> Cerrar Sesion
+    </li>
+  </ul>
+</nav>
+
+<!-- BOTON MOBILE PARA ABRIR SIDEBAR -->
+<button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">&#9776;</button>
+
+<!-- ============================================================ -->
+<!-- CONTENIDO PRINCIPAL -->
+<!-- ============================================================ -->
+<main class="main-content" id="mainContent">
+
+  <!-- ======================================================== -->
+  <!-- SECCION: PACIENTES -->
+  <!-- ======================================================== -->
+  <section id="sec-pacientes" class="content-section active">
+    <div class="section-header">
+      <h1>Pacientes</h1>
+    </div>
+    <div class="section-controls">
+      <div class="search-wrapper">
+        <input type="text" id="buscadorPacientesN" placeholder="Buscar por nombre o ID..." oninput="buscarPacientesN()">
+        <button onclick="buscarPacientesN()" class="search-btn">Buscar</button>
+      </div>
+      <button onclick="cargarPacientesN()" class="refresh-btn">Actualizar</button>
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nombre</th>
+            <th>Edad</th>
+            <th>Peso</th>
+            <th>Estatura</th>
+            <th>Actividad</th>
+            <th>Patologias</th>
+            <th>Objetivo</th>
+          </tr>
+        </thead>
+        <tbody id="cuerpoPacientesN">
+          <tr><td colspan="8" class="loading-msg">Cargando pacientes...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="pagPacientesN" class="pag-container"></div>
+  </section>
+
+  <!-- ======================================================== -->
+  <!-- SECCION: AGENDA DE CITAS -->
+  <!-- ======================================================== -->
+  <section id="sec-agenda" class="content-section" style="display:none;">
+    <div class="section-header">
+      <h1>Agenda de Citas</h1>
+      <button onclick="abrirModalCitaNutri()" class="btn-accion btn-nuevo">+ Nueva Cita</button>
+    </div>
+    <div class="section-controls">
+      <div class="search-wrapper">
+        <select id="selPacienteCitaN" onchange="filtrarCitasN()">
+          <option value="">Todos los pacientes</option>
+        </select>
+        <button onclick="filtrarCitasN()" class="search-btn">Filtrar</button>
+      </div>
+      <button onclick="cargarCitasN()" class="refresh-btn">Actualizar</button>
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Hora</th>
+            <th>Peso</th>
+            <th>IMC</th>
+            <th>Estado</th>
+            <th>Motivo</th>
+            <th>Observaciones</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="cuerpoCitasN">
+          <tr><td colspan="8" class="loading-msg">Cargando citas...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="pagCitasN" class="pag-container"></div>
+  </section>
+
+  <!-- ======================================================== -->
+  <!-- SECCION: SEGUIMIENTO DE PESO -->
+  <!-- ======================================================== -->
+  <section id="sec-peso" class="content-section" style="display:none;">
+    <div class="section-header">
+      <h1>Seguimiento de Peso</h1>
+      <button onclick="abrirFormPesoN()" class="btn-accion btn-nuevo">+ Registrar Peso</button>
+    </div>
+    <div class="section-controls">
+      <div class="search-wrapper">
+        <select id="selPacientePesoN" onchange="cargarProgresoN()">
+          <option value="">Seleccionar paciente...</option>
+        </select>
+        <button onclick="cargarProgresoN()" class="search-btn">Ver Progreso</button>
+      </div>
+    </div>
+    <div id="panelRegistroPesoN" class="registro-peso-card" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3>Registrar Peso del dia</h3>
+        <span class="modal-cerrar" onclick="cerrarFormPesoN()">&times;</span>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="pesoN-fecha">Fecha</label>
+          <input type="date" id="pesoN-fecha">
+        </div>
+        <div class="form-group">
+          <label for="pesoN-peso">Peso (kg)</label>
+          <input type="number" step="0.1" min="20" max="500" id="pesoN-peso" placeholder="Ej: 71.3">
+        </div>
+      </div>
+      <div class="modal-acciones">
+        <button class="btn-cancelar" onclick="cerrarFormPesoN()">Cancelar</button>
+        <button class="btn-guardar" onclick="guardarPesoN()">Guardar Peso</button>
+      </div>
+    </div>
+    <div id="resumenProgresoN" class="resumen-grid" style="display:none;">
+      <div class="resumen-card">
+        <span class="resumen-label">Paciente</span>
+        <span class="resumen-valor" id="progNNombre">-</span>
+      </div>
+      <div class="resumen-card">
+        <span class="resumen-label">Peso Inicial</span>
+        <span class="resumen-valor" id="progNPesoInicial">-</span>
+      </div>
+      <div class="resumen-card">
+        <span class="resumen-label">Peso Actual</span>
+        <span class="resumen-valor" id="progNPesoActual">-</span>
+      </div>
+      <div class="resumen-card">
+        <span class="resumen-label">Cambio Total</span>
+        <span class="resumen-valor" id="progNCambio">-</span>
+      </div>
+      <div class="resumen-card">
+        <span class="resumen-label">IMC Inicial</span>
+        <span class="resumen-valor" id="progNImcInicial">-</span>
+      </div>
+      <div class="resumen-card">
+        <span class="resumen-label">IMC Actual</span>
+        <span class="resumen-valor" id="progNImcActual">-</span>
+      </div>
+      <div class="resumen-card">
+        <span class="resumen-label">Peso Ideal</span>
+        <span class="resumen-valor" id="progNPesoIdeal">-</span>
+      </div>
+      <div class="resumen-card">
+        <span class="resumen-label">Diferencia al Ideal</span>
+        <span class="resumen-valor" id="progNDiferenciaIdeal">-</span>
+      </div>
+    </div>
+    <div id="graficaProgresoWrapperN" class="grafica-wrapper" style="display:none;">
+      <canvas id="graficaPesoN"></canvas>
+    </div>
+    <div id="msgSinProgresoN" class="sin-datos-msg" style="display:none;">
+      No existe informacion de seguimiento para este paciente.
+    </div>
+    <div id="tablaProgresoWrapperN" class="table-wrapper" style="display:none;">
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Peso (kg)</th>
+            <th>IMC</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody id="cuerpoProgresoN">
+          <tr><td colspan="4" class="loading-msg">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="tablaRegistrosPesoWrapperN" style="display:none;margin-top:30px;">
+      <h3 style="margin:0 0 14px;color:#00d4ff;font-weight:400;">Registros de Peso Independientes</h3>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Peso (kg)</th>
+              <th>IMC</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="cuerpoRegistrosPesoN">
+            <tr><td colspan="4" class="loading-msg">Sin registros</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================== -->
+  <!-- SECCION: PLANES ALIMENTICIOS -->
+  <!-- ======================================================== -->
+  <section id="sec-dietas" class="content-section" style="display:none;">
+    <div class="section-header">
+      <h1>Planes Alimenticios</h1>
+      <div style="display:flex;gap:10px;">
+        <button id="btnGenerarIA" onclick="generarDietaIA()" class="btn-accion btn-ia">Generar con IA</button>
+        <button onclick="abrirModalDieta()" class="btn-accion btn-nuevo">+ Nuevo Plan</button>
+        <button id="btnExportarPDF" onclick="exportarReportePDF()" class="btn-accion btn-pdf">Descargar PDF</button>
+      </div>
+    </div>
+    <div class="section-controls">
+      <div class="search-wrapper">
+        <select id="selPacienteDietaN" onchange="crearPagState('pagDietasN'); cargarDietasN()">
+          <option value="">Seleccionar paciente...</option>
+        </select>
+        <button onclick="cargarDietasN()" class="search-btn">Ver Planes</button>
+      </div>
+    </div>
+    <div id="panelGenerarDietaIA" style="display:none;">
+      <div class="generar-dieta-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+          <h3 style="margin:0;">Dieta Generada por IA</h3>
+          <span class="modal-cerrar" onclick="cerrarPanelGenerarDieta()">&times;</span>
+        </div>
+        <p class="generar-dieta-info">Paciente: <span id="genDietaNombre">-</span></p>
+        <div class="form-grid">
+          <div class="form-group form-group-full">
+            <label for="genDieta-desayuno">Desayuno</label>
+            <textarea id="genDieta-desayuno" rows="2"></textarea>
+          </div>
+          <div class="form-group form-group-full">
+            <label for="genDieta-colacion1">Colacion (Manana)</label>
+            <textarea id="genDieta-colacion1" rows="2"></textarea>
+          </div>
+          <div class="form-group form-group-full">
+            <label for="genDieta-comida">Comida</label>
+            <textarea id="genDieta-comida" rows="2"></textarea>
+          </div>
+          <div class="form-group form-group-full">
+            <label for="genDieta-colacion2">Colacion (Tarde)</label>
+            <textarea id="genDieta-colacion2" rows="2"></textarea>
+          </div>
+          <div class="form-group form-group-full">
+            <label for="genDieta-cena">Cena</label>
+            <textarea id="genDieta-cena" rows="2"></textarea>
+          </div>
+          <div class="form-group form-group-full">
+            <label for="genDieta-recomendaciones">Recomendaciones</label>
+            <textarea id="genDieta-recomendaciones" rows="3"></textarea>
+          </div>
+        </div>
+        <div class="modal-acciones">
+          <button class="btn-cancelar" onclick="cerrarPanelGenerarDieta()">Cancelar</button>
+          <button class="btn-guardar" onclick="guardarDietaDefinitiva()">Guardar Dieta</button>
+        </div>
+      </div>
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Desayuno</th>
+            <th>Colacion AM</th>
+            <th>Comida</th>
+            <th>Colacion PM</th>
+            <th>Cena</th>
+            <th>Recomendaciones</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="cuerpoDietasN">
+          <tr><td colspan="8" class="loading-msg">Selecciona un paciente para ver sus planes</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="pagDietasN" class="pag-container"></div>
+  </section>
+
+  <!-- ======================================================== -->
+  <!-- SECCION: RECOMENDACION CON IA -->
+  <!-- ======================================================== -->
+  <section id="sec-ia" class="content-section" style="display:none;">
+    <div class="section-header">
+      <h1>Recomendacion con IA</h1>
+    </div>
+    <div class="section-controls">
+      <div class="search-wrapper">
+        <select id="selPacienteIAN" onchange="cargarPerfilIAN()">
+          <option value="">Seleccionar paciente...</option>
+        </select>
+      </div>
+    </div>
+    <div id="perfilIAN" class="ia-perfil" style="display:none;">
+      <div class="ia-info-grid">
+        <div class="ia-info-item"><strong>Nombre:</strong> <span id="iaNNombre">-</span></div>
+        <div class="ia-info-item"><strong>Edad:</strong> <span id="iaNEdad">-</span></div>
+        <div class="ia-info-item"><strong>Peso:</strong> <span id="iaNPeso">-</span></div>
+        <div class="ia-info-item"><strong>Estatura:</strong> <span id="iaNEstatura">-</span></div>
+        <div class="ia-info-item"><strong>Actividad:</strong> <span id="iaNActividad">-</span></div>
+        <div class="ia-info-item"><strong>Objetivo:</strong> <span id="iaNObjetivo">-</span></div>
+        <div class="ia-info-item"><strong>Patologias:</strong> <span id="iaNPatologias">-</span></div>
+        <div class="ia-info-item"><strong>Ingredientes a evitar:</strong> <span id="iaNIngredientes">-</span></div>
+      </div>
+      <button onclick="obtenerRecomendacionIA()" class="btn-accion btn-nuevo" id="btnRecomendarIA">Obtener Recomendacion IA</button>
+    </div>
+    <div id="msgSinIA" class="sin-datos-msg" style="display:none;">
+      Selecciona un paciente para obtener una recomendacion personalizada.
+    </div>
+    <div id="resultadoIA" class="ia-resultado" style="display:none;">
+      <h3>Recomendacion</h3>
+      <div id="iaContenido"></div>
+    </div>
+  </section>
+
+  <!-- ======================================================== -->
+  <!-- SECCION: HISTORIAL CLINICO -->
+  <!-- ======================================================== -->
+  <section id="sec-historial" class="content-section" style="display:none;">
+    <div class="section-header">
+      <h1>Historial Clinico</h1>
+    </div>
+    <div class="section-controls">
+      <div class="search-wrapper">
+        <select id="selPacienteHistorialN" onchange="crearPagState('pagHistorialCitasN'); crearPagState('pagHistorialDietasN'); cargarHistorialN()">
+          <option value="">Seleccionar paciente...</option>
+        </select>
+      </div>
+    </div>
+    <div id="historialContenidoN" style="display:none;">
+      <!-- Tarjeta de datos del paciente -->
+      <div id="historialDatosPacienteN" class="historial-paciente-card"></div>
+      <!-- Historial de citas -->
+      <h3>Citas de Nutricion</h3>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Hora</th>
+              <th>Peso</th>
+              <th>IMC</th>
+              <th>Estado</th>
+              <th>Motivo</th>
+              <th>Observaciones</th>
+            </tr>
+          </thead>
+          <tbody id="cuerpoHistorialN">
+            <tr><td colspan="7" class="loading-msg">Cargando historial...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="pagHistorialCitasN" class="pag-container"></div>
+      <!-- Historial de planes -->
+      <h3 style="margin-top:30px;">Planes Alimenticios Anteriores</h3>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Desayuno</th>
+              <th>Colacion AM</th>
+              <th>Comida</th>
+              <th>Colacion PM</th>
+              <th>Cena</th>
+              <th>Recomendaciones</th>
+            </tr>
+          </thead>
+          <tbody id="cuerpoHistorialDietasN">
+            <tr><td colspan="7" class="loading-msg">Cargando planes...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="pagHistorialDietasN" class="pag-container"></div>
+    </div>
+    <div id="msgSinHistorialN" class="sin-datos-msg" style="display:none;">
+      Selecciona un paciente para ver su historial clinico completo.
+    </div>
+  </section>
+
+</main>
+
+<!-- ============================================================ -->
+<!-- MODAL: NUEVA/EDITAR CITA DE NUTRICION -->
+<!-- ============================================================ -->
+<div id="modalCitaN" class="modal-overlay" style="display:none;">
+  <div class="modal-contenido">
+    <div class="modal-header">
+      <h2 id="modalCitaNTitulo">Nueva Cita de Nutricion</h2>
+      <span class="modal-cerrar" onclick="cerrarModalCitaN()">&times;</span>
+    </div>
+    <form id="formCitaN" onsubmit="guardarCitaN(event)">
+      <input type="hidden" id="citaN-id">
+      <div class="form-grid">
+        <div class="form-group form-group-full">
+          <label for="citaN-paciente">Paciente</label>
+          <select id="citaN-paciente" required>
+            <option value="">Seleccionar paciente...</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="citaN-fecha">Fecha</label>
+          <input type="date" id="citaN-fecha" required>
+        </div>
+        <div class="form-group">
+          <label for="citaN-hora">Hora</label>
+          <input type="time" id="citaN-hora">
+        </div>
+        <div class="form-group">
+          <label for="citaN-peso">Peso (kg)</label>
+          <input type="number" step="0.1" min="20" max="500" id="citaN-peso" placeholder="Ej: 72.5">
+        </div>
+        <div class="form-group">
+          <label for="citaN-estatura">Estatura (cm)</label>
+          <input type="number" step="0.1" min="50" max="250" id="citaN-estatura" placeholder="Ej: 170">
+        </div>
+        <div class="form-group">
+          <label for="citaN-imc">IMC</label>
+          <input type="number" step="0.1" min="10" max="80" id="citaN-imc" placeholder="Se calcula automáticamente">
+        </div>
+        <div class="form-group">
+          <label for="citaN-estado">Estado</label>
+          <select id="citaN-estado">
+            <option value="Programada">Programada</option>
+            <option value="Completada">Completada</option>
+            <option value="Cancelada">Cancelada</option>
+            <option value="Reprogramada">Reprogramada</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="citaN-motivo">Motivo</label>
+          <input type="text" id="citaN-motivo" placeholder="Ej: Seguimiento mensual">
+        </div>
+        <div class="form-group form-group-full">
+          <label for="citaN-observaciones">Observaciones</label>
+          <textarea id="citaN-observaciones" rows="3" placeholder="Notas de la consulta..."></textarea>
+        </div>
+      </div>
+      <div class="modal-acciones">
+        <button type="button" class="btn-cancelar" onclick="cerrarModalCitaN()">Cancelar</button>
+        <button type="submit" class="btn-guardar">Guardar Cita</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- MODAL: NUEVO/EDITAR PLAN ALIMENTICIO -->
+<!-- ============================================================ -->
+<div id="modalDietaN" class="modal-overlay" style="display:none;">
+  <div class="modal-contenido">
+    <div class="modal-header">
+      <h2 id="modalDietaNTitulo">Nuevo Plan Alimenticio</h2>
+      <span class="modal-cerrar" onclick="cerrarModalDietaN()">&times;</span>
+    </div>
+    <form id="formDietaN" onsubmit="guardarDietaN(event)">
+      <input type="hidden" id="dietaN-id">
+      <div class="form-grid">
+        <div class="form-group form-group-full">
+          <label for="dietaN-paciente">Paciente</label>
+          <select id="dietaN-paciente" required>
+            <option value="">Seleccionar paciente...</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="dietaN-fecha">Fecha</label>
+          <input type="date" id="dietaN-fecha" required>
+        </div>
+        <div class="form-group form-group-full">
+          <label for="dietaN-desayuno">Desayuno</label>
+          <textarea id="dietaN-desayuno" rows="2" placeholder="Ej: Avena con frutas, jugo natural..."></textarea>
+        </div>
+        <div class="form-group form-group-full">
+          <label for="dietaN-colacion1">Colacion (Manana)</label>
+          <textarea id="dietaN-colacion1" rows="2" placeholder="Ej: Fruta con nueces, yogur..."></textarea>
+        </div>
+        <div class="form-group form-group-full">
+          <label for="dietaN-comida">Comida</label>
+          <textarea id="dietaN-comida" rows="2" placeholder="Ej: Pechuga de pollo, arroz, ensalada..."></textarea>
+        </div>
+        <div class="form-group form-group-full">
+          <label for="dietaN-colacion2">Colacion (Tarde)</label>
+          <textarea id="dietaN-colacion2" rows="2" placeholder="Ej: Barra de granola, te verde..."></textarea>
+        </div>
+        <div class="form-group form-group-full">
+          <label for="dietaN-cena">Cena</label>
+          <textarea id="dietaN-cena" rows="2" placeholder="Ej: Pescado al horno, verduras al vapor..."></textarea>
+        </div>
+        <div class="form-group form-group-full">
+          <label for="dietaN-recomendaciones">Recomendaciones Generales</label>
+          <textarea id="dietaN-recomendaciones" rows="3" placeholder="Ej: Beber 2L de agua, evitar alimentos ultraprocesados..."></textarea>
+        </div>
+      </div>
+      <div class="modal-acciones">
+        <button type="button" class="btn-cancelar" onclick="cerrarModalDietaN()">Cancelar</button>
+        <button type="submit" class="btn-guardar">Guardar Plan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="msgErrorN" class="error-msg"></div>
+
+<!-- Toast container -->
+<div id="toastContainer" class="toast-container"></div>
+
+<!-- ============================================================ -->
+<!-- PLANTILLA PARA REPORTE PDF (oculta) -->
+<!-- ============================================================ -->
+<div id="plantillaReporte" style="display:none; width:21.6cm; min-height:27.9cm; padding:1.5cm 2cm; font-family:Arial,Helvetica,sans-serif; background:#fff; color:#222; box-sizing:border-box;">
+  <style>
+    #plantillaReporte * { margin:0; padding:0; box-sizing:border-box; }
+    #plantillaReporte .rep-header { text-align:center; border-bottom:3px solid #2ecc71; padding-bottom:12px; margin-bottom:20px; }
+    #plantillaReporte .rep-header h1 { font-size:22px; color:#2ecc71; margin-bottom:4px; }
+    #plantillaReporte .rep-header p { font-size:13px; color:#666; }
+    #plantillaReporte .rep-info { width:100%; border-collapse:collapse; margin-bottom:18px; font-size:13px; }
+    #plantillaReporte .rep-info td { padding:4px 6px; }
+    #plantillaReporte .rep-info .label { font-weight:bold; width:100px; color:#333; }
+    #plantillaReporte .rep-info .value { color:#222; }
+    #plantillaReporte .rep-section-title { color:#2ecc71; border-bottom:2px solid #2ecc71; padding-bottom:6px; margin:20px 0 10px; font-size:15px; }
+    #plantillaReporte .rep-dieta { width:100%; border-collapse:collapse; font-size:13px; }
+    #plantillaReporte .rep-dieta td { padding:8px 6px; border-bottom:1px solid #ddd; vertical-align:top; }
+    #plantillaReporte .rep-dieta .d-label { font-weight:bold; width:140px; color:#333; background:#f9f9f9; }
+    #plantillaReporte .rep-footer { text-align:center; margin-top:30px; font-size:11px; color:#999; border-top:1px solid #ddd; padding-top:10px; }
+  </style>
+  <div class="rep-header">
+    <h1>Clínica de Nutrición</h1>
+    <p>Plan Alimenticio Personalizado</p>
+  </div>
+  <table class="rep-info">
+    <tr>
+      <td class="label">Paciente:</td>
+      <td class="value" id="rep-nombre">—</td>
+      <td class="label" style="width:70px;">Fecha:</td>
+      <td class="value" id="rep-fecha">—</td>
+    </tr>
+    <tr>
+      <td class="label">Peso:</td>
+      <td class="value" id="rep-peso">—</td>
+      <td class="label">IMC:</td>
+      <td class="value" id="rep-imc">—</td>
+    </tr>
+  </table>
+  <div class="rep-section-title">Plan de Alimentación</div>
+  <table class="rep-dieta">
+    <tr><td class="d-label">Desayuno</td><td id="rep-desayuno">—</td></tr>
+    <tr><td class="d-label">Colación (Mañana)</td><td id="rep-colacion1">—</td></tr>
+    <tr><td class="d-label">Comida</td><td id="rep-comida">—</td></tr>
+    <tr><td class="d-label">Colación (Tarde)</td><td id="rep-colacion2">—</td></tr>
+    <tr><td class="d-label">Cena</td><td id="rep-cena">—</td></tr>
+    <tr><td class="d-label">Recomendaciones</td><td id="rep-recomendaciones">—</td></tr>
+  </table>
+  <div class="rep-footer">Generado por el Sistema de Gestión de Pacientes — Clínica de Nutrición</div>
+</div>
+
+<script src="shared.js"></script>
+<script src="nutriologo.js"></script>
+
+</body>
+</html>

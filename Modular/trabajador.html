@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Panel de Administracion - Trabajador</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="trabajador.css">
+</head>
+<body>
+
+<!-- 🔐 Login overlay -->
+<div id="loginOverlay" class="login-overlay">
+  <div class="login-card">
+    <h2>Acceso al Panel de Administración</h2>
+    <p class="login-subtitle">Ingrese sus credenciales de administrador</p>
+    <div id="loginError" class="login-error" style="display:none;"></div>
+    <input type="text" id="loginUser" placeholder="Usuario" autocomplete="off">
+    <input type="password" id="loginPass" placeholder="Contraseña">
+    <button onclick="doLogin()" class="btn-guardar">Ingresar</button>
+  </div>
+</div>
+
+<div class="trabajador-container">
+  <div class="trabajador-header">
+    <h1>Panel de Administracion de Pacientes</h1>
+    <div class="header-btns">
+      <button onclick="toggleSeccionNutricion()" class="back-btn" id="btnNutricion">Historial de Citas</button>
+      <button onclick="toggleSeccionProgreso()" class="back-btn" id="btnProgreso">Seguimiento de Peso</button>
+      <button onclick="cerrarSesion()" class="back-btn">Cerrar sesion</button>
+    </div>
+  </div>
+
+  <div class="trabajador-controls">
+    <div class="search-wrapper">
+      <input type="text" id="buscador" placeholder="Buscar por nombre o ID..." oninput="buscarPacientes()">
+      <button onclick="buscarPacientes()" class="search-btn">Buscar</button>
+    </div>
+    <button onclick="cargarPacientes()" class="refresh-btn">Actualizar</button>
+  </div>
+
+  <div class="table-wrapper">
+    <table id="tablaPacientes">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Nombre</th>
+          <th>Edad</th>
+          <th>Peso</th>
+          <th>Estatura</th>
+          <th>Actividad</th>
+          <th>Patologias</th>
+          <th>Objetivo</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+        <tbody id="cuerpoTabla">
+          <tr><td colspan="9" class="loading-msg">Cargando pacientes...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="pagPacientes" class="pag-container"></div>
+
+  <div id="mensajeError" class="error-msg"></div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 📋 HISTORIAL DE CITAS -->
+<!-- ============================================================ -->
+<div class="historial-section">
+  <h2>Historial de Citas</h2>
+  <div class="trabajador-controls">
+    <div class="search-wrapper">
+      <input type="text" id="buscadorCitas" placeholder="Buscar por paciente, médico o ID..." oninput="buscarHistorialCitas()">
+      <button onclick="buscarHistorialCitas()" class="search-btn">Buscar</button>
+    </div>
+    <button onclick="cargarHistorialCitas()" class="refresh-btn">Actualizar</button>
+  </div>
+  <div class="table-wrapper">
+    <table id="tablaCitas">
+      <thead>
+        <tr>
+          <th>ID Cita</th>
+          <th>ID Paciente</th>
+          <th>Paciente</th>
+          <th>Médico</th>
+          <th>Fecha</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+        <tbody id="cuerpoTablaCitas">
+          <tr><td colspan="6" class="loading-msg">Cargando historial de citas...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="pagHistorialCitas" class="pag-container"></div>
+  </div>
+
+<!-- ============================================================ -->
+<!-- 🥗 HISTORIAL DE CITAS DE NUTRICIÓN -->
+<!-- ============================================================ -->
+<div id="seccionNutricion" class="nutricion-section" style="display:none;">
+  <div class="nutricion-header">
+    <h2>Historial de Citas de Nutrición</h2>
+    <button onclick="abrirModalNuevaCita()" class="btn-nueva-cita">+ Nueva Cita</button>
+  </div>
+
+  <div class="trabajador-controls">
+    <div class="search-wrapper">
+      <select id="selPacienteCita" onchange="filtrarCitasPorPaciente()">
+        <option value="">Todos los pacientes</option>
+      </select>
+      <button onclick="filtrarCitasPorPaciente()" class="search-btn">Filtrar</button>
+    </div>
+    <button onclick="cargarCitasNutricion()" class="refresh-btn">Actualizar</button>
+  </div>
+
+  <div class="table-wrapper">
+    <table id="tablaNutricion">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Hora</th>
+          <th>Peso</th>
+          <th>IMC</th>
+          <th>Estado</th>
+          <th>Motivo</th>
+          <th>Observaciones</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="cuerpoTablaNutricion">
+        <tr><td colspan="8" class="loading-msg">Cargando citas de nutrición...</td></tr>
+      </tbody>
+    </table>
+    <div id="pagCitasNutricion" class="pag-container"></div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 📊 SEGUIMIENTO DE PESO Y PROGRESO -->
+<!-- ============================================================ -->
+<div id="seccionProgreso" class="progreso-section" style="display:none;">
+  <h2>Seguimiento de Peso y Progreso</h2>
+
+  <!-- Selector de paciente -->
+  <div class="trabajador-controls">
+    <div class="search-wrapper">
+      <select id="selPacienteProgreso" onchange="cargarProgresoPaciente()">
+        <option value="">Seleccionar paciente...</option>
+      </select>
+      <button onclick="cargarProgresoPaciente()" class="search-btn">Ver Progreso</button>
+    </div>
+  </div>
+
+  <!-- Tarjetas de resumen (solo se muestra si hay datos) -->
+  <div id="resumenProgreso" class="resumen-grid" style="display:none;">
+    <div class="resumen-card">
+      <span class="resumen-label">Paciente</span>
+      <span class="resumen-valor" id="progNombre">-</span>
+    </div>
+    <div class="resumen-card">
+      <span class="resumen-label">Peso Inicial</span>
+      <span class="resumen-valor" id="progPesoInicial">-</span>
+    </div>
+    <div class="resumen-card">
+      <span class="resumen-label">Peso Actual</span>
+      <span class="resumen-valor" id="progPesoActual">-</span>
+    </div>
+    <div class="resumen-card">
+      <span class="resumen-label">Cambio Total</span>
+      <span class="resumen-valor" id="progCambio">-</span>
+    </div>
+    <div class="resumen-card">
+      <span class="resumen-label">IMC Inicial</span>
+      <span class="resumen-valor" id="progImcInicial">-</span>
+    </div>
+    <div class="resumen-card">
+      <span class="resumen-label">IMC Actual</span>
+      <span class="resumen-valor" id="progImcActual">-</span>
+    </div>
+    <div class="resumen-card">
+      <span class="resumen-label">Peso Ideal</span>
+      <span class="resumen-valor" id="progPesoIdeal">-</span>
+    </div>
+    <div class="resumen-card">
+      <span class="resumen-label">Diferencia al Ideal</span>
+      <span class="resumen-valor" id="progDiferenciaIdeal">-</span>
+    </div>
+  </div>
+
+  <!-- Mensaje cuando no hay datos -->
+  <div id="msgSinProgreso" class="sin-datos-msg" style="display:none;">
+    No existe información de seguimiento para este paciente. Registre citas de nutrición con peso para ver el progreso.
+  </div>
+
+  <!-- Gráfica de evolución de peso -->
+  <div id="contenedorGrafica" class="grafica-wrapper" style="display:none;">
+    <canvas id="graficaProgreso"></canvas>
+  </div>
+
+  <!-- Tabla cronológica -->
+  <div id="tablaProgresoWrapper" class="table-wrapper" style="display:none;">
+    <table id="tablaProgreso">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Peso (kg)</th>
+          <th>IMC</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody id="cuerpoTablaProgreso">
+        <tr><td colspan="4" class="loading-msg">Cargando...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- MODAL PARA EDITAR PACIENTE -->
+<!-- ============================================================ -->
+<div id="modalEditar" class="modal-overlay" style="display:none;">
+  <div class="modal-contenido">
+    <div class="modal-header">
+      <h2>Editar Paciente</h2>
+      <span class="modal-cerrar" onclick="cerrarModal()">&times;</span>
+    </div>
+    <form id="formEditar" onsubmit="guardarEdicion(event)">
+      <input type="hidden" id="edit-id">
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="edit-nombre">Nombre</label>
+          <input type="text" id="edit-nombre" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-edad">Edad</label>
+          <input type="number" id="edit-edad" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-peso">Peso (kg)</label>
+          <input type="number" step="0.1" id="edit-peso" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-estatura">Estatura (m)</label>
+          <input type="number" step="0.01" id="edit-estatura" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-sexo">Sexo</label>
+          <select id="edit-sexo" required>
+            <option value="">Seleccionar...</option>
+            <option value="hombre">Hombre</option>
+            <option value="mujer">Mujer</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="edit-actividad">Actividad</label>
+          <select id="edit-actividad" required>
+            <option value="">Seleccionar...</option>
+            <option value="bajo">Bajo</option>
+            <option value="medio">Medio</option>
+            <option value="alto">Alto</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="edit-patologias">Patologias</label>
+          <input type="text" id="edit-patologias" placeholder="Ninguna">
+        </div>
+        <div class="form-group">
+          <label for="edit-objetivo">Objetivo</label>
+          <select id="edit-objetivo" required>
+            <option value="">Seleccionar...</option>
+            <option value="perder_peso">Perder peso</option>
+            <option value="mantener">Mantener peso</option>
+            <option value="ganar_musculo">Ganar masa muscular</option>
+          </select>
+        </div>
+        <div class="form-group form-group-full">
+          <label for="edit-ingredientes">Ingredientes a evitar</label>
+          <input type="text" id="edit-ingredientes" placeholder="Ej: lacteos, gluten">
+        </div>
+      </div>
+
+      <div class="modal-acciones">
+        <button type="button" class="btn-cancelar" onclick="cerrarModal()">Cancelar</button>
+        <button type="submit" class="btn-guardar">Guardar Cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- MODAL PARA REAGENDAR CITA -->
+<!-- ============================================================ -->
+<div id="modalReagendar" class="modal-overlay" style="display:none;">
+  <div class="modal-contenido">
+    <div class="modal-header">
+      <h2>Reagendar Cita</h2>
+      <span class="modal-cerrar" onclick="cerrarModalReagendar()">&times;</span>
+    </div>
+    <form id="formReagendar" onsubmit="guardarReagendar(event)">
+      <input type="hidden" id="reagendar-id">
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="reagendar-medico">Médico</label>
+          <select id="reagendar-medico" required>
+            <option value="">Seleccionar...</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="reagendar-fecha">Nueva Fecha</label>
+          <input type="date" id="reagendar-fecha" required>
+        </div>
+      </div>
+
+      <div class="modal-acciones">
+        <button type="button" class="btn-cancelar" onclick="cerrarModalReagendar()">Cancelar</button>
+        <button type="submit" class="btn-guardar">Guardar Cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="toastContainer" class="toast-container"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="shared.js"></script>
+<script src="trabajador.js"></script>
+<script src="citas-nutricion.js"></script>
+<script src="progreso-peso.js"></script>
+
+<!-- ============================================================ -->
+<!-- MODAL CITA DE NUTRICIÓN -->
+<!-- ============================================================ -->
+<div id="modalCitaNutricion" class="modal-overlay" style="display:none;">
+  <div class="modal-contenido">
+    <div class="modal-header">
+      <h2>Nueva Cita de Nutrición</h2>
+      <span class="modal-cerrar" onclick="cerrarModalCitaNutricion()">&times;</span>
+    </div>
+    <form id="formCitaNutricion" onsubmit="guardarCitaNutricion(event)">
+      <input type="hidden" id="cita-id">
+
+      <div class="form-grid">
+        <div class="form-group form-group-full">
+          <label for="cita-paciente">Paciente</label>
+          <select id="cita-paciente" required>
+            <option value="">Seleccionar paciente...</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="cita-fecha">Fecha</label>
+          <input type="date" id="cita-fecha" required>
+        </div>
+        <div class="form-group">
+          <label for="cita-hora">Hora</label>
+          <input type="time" id="cita-hora">
+        </div>
+        <div class="form-group">
+          <label for="cita-peso">Peso (kg)</label>
+          <input type="number" step="0.1" min="20" max="500" id="cita-peso" placeholder="Ej: 72.5">
+        </div>
+        <div class="form-group">
+          <label for="cita-estatura">Estatura (cm)</label>
+          <input type="number" step="0.1" min="50" max="250" id="cita-estatura" placeholder="Ej: 170">
+        </div>
+        <div class="form-group">
+          <label for="cita-imc">IMC</label>
+          <input type="number" step="0.1" min="10" max="80" id="cita-imc" placeholder="Se calcula automáticamente">
+        </div>
+        <div class="form-group">
+          <label for="cita-estado">Estado</label>
+          <select id="cita-estado">
+            <option value="Programada">Programada</option>
+            <option value="Completada">Completada</option>
+            <option value="Cancelada">Cancelada</option>
+            <option value="Reprogramada">Reprogramada</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="cita-motivo">Motivo</label>
+          <input type="text" id="cita-motivo" placeholder="Ej: Seguimiento mensual">
+        </div>
+        <div class="form-group form-group-full">
+          <label for="cita-observaciones">Observaciones</label>
+          <textarea id="cita-observaciones" rows="3" placeholder="Notas de la consulta..."></textarea>
+        </div>
+      </div>
+
+      <div class="modal-acciones">
+        <button type="button" class="btn-cancelar" onclick="cerrarModalCitaNutricion()">Cancelar</button>
+        <button type="submit" class="btn-guardar">Guardar Cita</button>
+      </div>
+    </form>
+  </div>
+</div>

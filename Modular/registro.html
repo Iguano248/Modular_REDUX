@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Registro</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="registro-container">
+  <h1>Registrar Usuario</h1>
+
+  <form id="form">
+    <input name="id" placeholder="ID Huella">
+    <input name="nombre" placeholder="Nombre">
+    <input name="edad" placeholder="Edad">
+    <input name="peso" placeholder="Peso">
+    <input name="estatura" placeholder="Estatura">
+
+    <select name="sexo">
+      <option value="">Selecciona sexo</option>
+      <option value="hombre">Hombre</option>
+      <option value="mujer">Mujer</option>
+    </select>
+
+    <select name="actividad">
+      <option value="">Selecciona actividad</option>
+      <option value="bajo">Bajo</option>
+      <option value="medio">Medio</option>
+      <option value="alto">Alto</option>
+    </select>
+
+    <input name="patologias" placeholder="Patologías (opcional)">
+    <select name="objetivo">
+      <option value="">Selecciona objetivo</option>
+      <option value="perder_peso">Perder peso</option>
+      <option value="mantener">Mantener peso</option>
+      <option value="ganar_musculo">Ganar masa muscular</option>
+    </select>
+
+    <input name="ingredientes_evitar" placeholder="Ingredientes a evitar (opcional)">
+
+    <input name="pin" type="password" placeholder="PIN de acceso (4-8 dígitos, opcional)" maxlength="8">
+
+    <button>Registrar</button>
+  </form>
+
+  <hr>
+
+  <h2>Registrar huella</h2>
+  <input id="idHuella" placeholder="ID">
+
+  <button onclick="registrarHuella()" style="width:100%">Registrar</button>
+
+  <div class="sensor-status">
+    <h3>Estado del sensor</h3>
+    <div id="estado">Esperando...</div>
+  </div>
+
+  <button onclick="volver()" class="back-btn">Volver</button>
+</div>
+
+<script>
+const API = 'http://localhost:4000';
+document.getElementById('form').onsubmit = async (e) => {
+  e.preventDefault();
+
+  const data = Object.fromEntries(new FormData(e.target));
+
+  if (!data.id || !data.nombre || !data.edad || !data.peso || !data.estatura || !data.actividad || !data.objetivo) {
+    alert("Completa todos los campos obligatorios");
+    return;
+  }
+
+  const pin = data.pin;
+  delete data.pin;
+
+  const res = await fetch(API + '/registro', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  });
+
+  const result = await res.json();
+
+  if (result.error) {
+    alert("Error: " + result.error);
+    return;
+  }
+
+  if (pin && pin.length >= 4) {
+    const pinRes = await fetch(API + '/registrar-pin', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ id: parseInt(data.id), pin })
+    });
+
+    const pinResult = await pinRes.json();
+    if (pinResult.error) {
+      alert("Usuario registrado, pero error al guardar PIN: " + pinResult.error);
+    } else {
+      alert("Usuario y PIN registrados correctamente");
+    }
+  } else {
+    alert("Usuario registrado correctamente");
+  }
+
+  e.target.reset();
+};
+
+let enrollando = false;
+let ultimoEstado = "";
+
+async function registrarHuella() {
+  const id = document.getElementById('idHuella').value.trim();
+
+  if (!id || isNaN(id)) {
+    alert("Ingresa un ID numérico válido primero");
+    return;
+  }
+
+  enrollando = true;
+  document.getElementById('estado').innerText = "Iniciando registro...";
+
+  try {
+    const res = await fetch(API + '/enroll', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ id })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert("Error: " + (data.error || "No se pudo iniciar el registro"));
+      document.getElementById('estado').innerText = "Error al iniciar";
+      enrollando = false;
+      return;
+    }
+  } catch (error) {
+    alert("Error de conexión con el servidor");
+    document.getElementById('estado').innerText = "Error de conexión";
+    enrollando = false;
+  }
+}
+
+async function actualizarEstado() {
+  try {
+    const res = await fetch(API + '/estado');
+    const data = await res.json();
+    const estado = data.estado || "";
+
+    // Si estamos en un nuevo enrollment, ignorar estados viejos
+    if (enrollando && (estado === ultimoEstado || estado === "")) return;
+
+    let texto = "Esperando...";
+
+    switch(estado) {
+      case "STARTING":
+        texto = "Iniciando registro...";
+        break;
+      case "ENROLL:STEP1":
+        texto = "Coloca tu dedo";
+        enrollando = false;
+        break;
+      case "ENROLL:STEP2":
+        texto = "Quita tu dedo";
+        break;
+      case "ENROLL:STEP3":
+        texto = "Coloca el mismo dedo otra vez";
+        break;
+      case "ENROLL:OK":
+        texto = "Huella registrada correctamente";
+        enrollando = false;
+        break;
+      case "ENROLL:TIMEOUT":
+        texto = "Tiempo de espera agotado";
+        enrollando = false;
+        break;
+      case "ENROLL:ERROR":
+        texto = "Error al registrar huella";
+        enrollando = false;
+        break;
+      case "ENROLL:ERROR:MISMATCH":
+        texto = "Las huellas no coinciden. Asegurate de usar el mismo dedo y la misma posicion.";
+        enrollando = false;
+        break;
+    }
+
+    ultimoEstado = estado;
+    const el = document.getElementById('estado');
+    el.innerText = texto;
+
+  } catch (error) {
+    if (!enrollando) {
+      document.getElementById('estado').innerText = "Error de conexión";
+    }
+  }
+}
+
+setInterval(actualizarEstado, 500);
+
+function volver() {
+  window.location.href = "home.html";
+}
+</script>
+
+</body>
+</html>

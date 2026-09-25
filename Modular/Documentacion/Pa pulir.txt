@@ -1,0 +1,27 @@
+Pa pulir
+Basado en el análisis completo del código, esto es lo que más necesita pulirse:
+1. Seguridad — Datos expuestos sin autenticación (ya)
+Casi todos los endpoints (/usuarios, /usuarios/buscar, /progreso/:id, /dietas/:id, /nutricion/citas) devuelven información sensible sin validar token/sesión. Cualquiera en la red local puede leer todos los pacientes.
+2. Código duplicado — 3 archivos JS, misma lógica (ya)
+- citas-nutricion.js y nutriologo.js tienen CRUD de citas casi idéntico
+- progreso-peso.js y la sección 4 de nutriologo.js duplican la lógica de seguimiento de peso
+- escaparHTML/escHTML/escapeHTMLProgreso — 3 versiones de la misma función
+- API_NUTRICION, API_N, API_PROGRESO, API — 4 constantes para localhost:4000
+3. Puerto de IA inconsistente (ya)
+obtenerRecomendacionIA() llama directo a http://127.0.0.1:5000/recomendar, mientras generarDietaIA() usa el bridge POST /api/generar-dieta-ia del backend. Deberían ir por la misma ruta.
+4. panel.html (vista paciente) tiene nula protección (ya)
+Si alguien conoce el token de otro usuario, puede ver sus datos. No hay verificación de pertenencia.
+5. UX — Sin feedback visual
+- alert() en lugar de toasts/notificaciones
+- Los botones no tienen estado de carga deshabilitado consistente
+- El PDF exporta solo desde el panel de IA, no desde la tabla de dietas guardadas
+6. Gráfica fantasma en trabajador
+progreso-peso.js:114 tiene un placeholder comentado: "// La gráfica se inicializará aquí cuando se integre Chart.js" — nunca se implementó. El trabajador no ve gráfica a diferencia del nutriólogo.
+7. Ruta duplicada en server.js
+POST /api/dietas (línea 798) y POST /dietas (línea 701) hacen exactamente lo mismo.
+8. Sin paginación
+Si hay cientos de pacientes, citas o dietas, las tablas cargan todo en una sola petición sin límite.
+9. Sesiones sin expiración
+Map en memoria sin TTL. Un token robado sirve indefinidamente.
+10. Modal de citas sin auto-IMC al editar
+El auto-IMC solo reacciona a eventos input, pero al editar una cita existente con peso, no recalcula si falta IMC.

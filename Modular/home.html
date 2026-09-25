@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sistema de Salud</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="home-container">
+  <h1 class="home-title">Sistema Inteligente<br>de Alimentación</h1>
+  <p class="home-subtitle">Accede a tu plan nutricional personalizado</p>
+
+  <div class="home-buttons">
+    <button onclick="irLogin()">Iniciar sesión</button>
+    <button onclick="irRegistro()">Registrar usuario</button>
+    <button onclick="irTrabajador()">Panel trabajador</button>
+    <button onclick="irNutriologo()">Panel nutriologo</button>
+  </div>
+</div>
+
+<script>
+function irLogin() {
+  window.location.href = "index.html";  
+}
+
+function irRegistro() {
+  window.location.href = "registro.html";
+}
+
+function irTrabajador() {
+  window.location.href = "trabajador.html";
+}
+
+function irNutriologo() {
+  window.location.href = "nutriologo.html";
+}
+</script>
+
+</body>
+</html>

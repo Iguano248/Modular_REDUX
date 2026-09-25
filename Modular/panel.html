@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Panel del Paciente</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="panel-wrapper">
+  <div class="panel-main">
+    <div class="panel-header">
+      <h1>Bienvenido <span id="nombre" class="user-badge"></span></h1>
+      <button onclick="logout()">Cerrar sesión</button>
+    </div>
+
+    <div class="profile-card" id="perfil"></div>
+
+    <h2>Dieta recomendada</h2>
+    <div class="diet-card" id="dieta">Cargando...</div>
+
+    <h2>Próximas citas</h2>
+    <div class="appointment-list" id="listaCitas">Cargando...</div>
+  </div>
+
+  <div class="panel-sidebar">
+    <h2>Agendar cita</h2>
+
+    <select id="medicoSelect"></select>
+
+    <input type="date" id="calendario" required>
+
+    <button onclick="agendarCita()" style="width:100%">Agendar</button>
+    <p id="mensajeCita"></p>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+const API = API_BASE;
+const TOKEN = localStorage.getItem('sessionToken');
+
+if (!TOKEN) {
+  window.location.href = "index.html";
+}
+
+// 🔐 Helper: petición autenticada al backend
+async function fetchAuth(url, options = {}) {
+  const sep = url.includes('?') ? '&' : '?';
+  const res = await fetch(url + sep + 'token=' + encodeURIComponent(TOKEN), options);
+  if (res.status === 401) {
+    localStorage.removeItem('sessionToken');
+    window.location.href = "index.html";
+    throw new Error('Sesión expirada');
+  }
+  return res;
+}
+
+// 🔐 Usuario
+async function cargarUsuario() {
+  try {
+    const res = await fetchAuth(API + '/session');
+    const data = await res.json();
+    if (!data || !data.valid) throw new Error('Sesión inválida');
+    const user = data.user;
+
+    document.getElementById('nombre').textContent = escapeHTML(user.nombre);
+    document.getElementById('perfil').innerHTML =
+      'Edad: ' + escapeHTML(user.edad) + '<br>' +
+      'Peso: ' + escapeHTML(user.peso) + '<br>' +
+      'Estatura: ' + escapeHTML(user.estatura) + '<br>' +
+      'Actividad: ' + escapeHTML(user.actividad);
+  } catch (err) {
+    document.getElementById('perfil').textContent = 'Error al cargar perfil';
+  }
+}
+
+// 🍽️ Dieta
+async function cargarDieta() {
+  try {
+    const res = await fetchAuth(API + '/dieta');
+    const data = await res.json();
+    if (!data || !data.plan) {
+      document.getElementById('dieta').textContent = 'Sin datos';
+      return;
+    }
+    document.getElementById('dieta').innerHTML =
+      '<h4>Desayuno</h4><p>' + escapeHTML(data.plan.desayuno) + '</p>' +
+      '<h4>Comida</h4><p>' + escapeHTML(data.plan.comida) + '</p>' +
+      '<h4>Cena</h4><p>' + escapeHTML(data.plan.cena) + '</p>';
+  } catch {
+    document.getElementById('dieta').textContent = 'Error al cargar dieta';
+  }
+}
+
+// 👨‍⚕️ Médicos
+let medicos = [];
+
+async function cargarMedicos() {
+  try {
+    const res = await fetch(API + '/medicos?token=' + encodeURIComponent(TOKEN));
+    medicos = await res.json();
+    const select = document.getElementById("medicoSelect");
+    select.innerHTML = "";
+    medicos.forEach(m => {
+      const option = document.createElement("option");
+      option.value = m.id;
+      option.textContent = m.nombre;
+      select.appendChild(option);
+    });
+    cargarFechasOcupadas();
+  } catch {
+    // silencioso
+  }
+}
+
+// 📅 Fechas ocupadas
+async function cargarFechasOcupadas() {
+  const medicoId = document.getElementById("medicoSelect").value;
+  try {
+    const res = await fetch(API + `/citas/${medicoId}?token=` + encodeURIComponent(TOKEN));
+    const fechas = await res.json();
+    const calendario = document.getElementById("calendario");
+    calendario.onchange = () => {
+      if (fechas.includes(calendario.value)) {
+        alert("Fecha no disponible");
+        calendario.value = "";
+      }
+    };
+  } catch {
+    // silencioso
+  }
+}
+
+// 📌 Agendar
+async function agendarCita() {
+  const medicoId = document.getElementById("medicoSelect").value;
+  const fecha = document.getElementById("calendario").value;
+  if (!fecha) {
+    document.getElementById("mensajeCita").textContent = "Debes seleccionar una fecha";
+    return;
+  }
+  try {
+    const res = await fetchAuth(API + '/citas', {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ medicoId, fecha })
+    });
+    const data = await res.json();
+    document.getElementById("mensajeCita").textContent = data.mensaje;
+    cargarCitas();
+  } catch {
+    document.getElementById("mensajeCita").textContent = "Error al agendar";
+  }
+}
+
+// 📅 Mostrar citas
+async function cargarCitas() {
+  try {
+    const res = await fetchAuth(API + '/mis-citas');
+    const data = await res.json();
+    if (!data.length) {
+      document.getElementById('listaCitas').textContent = "No hay citas";
+      return;
+    }
+    document.getElementById('listaCitas').innerHTML = data.map(c =>
+      '<p>' + escapeHTML(c.nombre) + '<br>' + escapeHTML(c.fecha) + '</p><hr>'
+    ).join('');
+  } catch {
+    document.getElementById('listaCitas').textContent = "Error al cargar citas";
+  }
+}
+
+// 🚪 Logout
+function logout() {
+  fetch(API + '/logout?token=' + encodeURIComponent(TOKEN));
+  localStorage.removeItem('sessionToken');
+  window.location.href = "index.html";
+}
+
+// 🚀 INIT
+Promise.all([
+  cargarUsuario(),
+  cargarMedicos(),
+  cargarDieta(),
+  cargarCitas()
+]).catch(() => {});
+</script>
+
+</body>
+</html>

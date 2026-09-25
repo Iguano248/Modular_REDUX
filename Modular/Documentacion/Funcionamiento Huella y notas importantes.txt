@@ -1,0 +1,11 @@
+Primero se registra con Enroll
+Se carga el archivo Arduino Registro_huella
+Luego se activa server.js
+Se abre index.html
+Se registra el usuario
+Se comprueba la huella en la página
+
+Cable amarillo: pin 2
+Cable blanco: pin 3
+
+En terminal server.js: node server.js (esto para que jale)

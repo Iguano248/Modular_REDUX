@@ -1,0 +1,28 @@
+Tecnologías:
+Backend - node.js (server.js)
+
+- Express: servidor web/ API REST (ver que es eso) en el puerto 4000
+- SQLite3: base de datos local (usuarios .db)
+- SerialPort + @serialport/parser-readline (ver q es eso): comunicación con Arduino por puerto COM3 (ver q es puerto COM3)
+- CORS y módulo nativo crypto: tokens de sesión UUID (ver q es)
+
+Frontend - Vanilla JS
+- HTML5 / CSS3 / JavaScript
+- Chart.js (CDN): graficas de progreso 
+- html2pdf.jes (CDN): exportación a PDF (ver q es CDN)
+
+IA / Machine Learning - Python
+- Flask: microservicio de IA en el puerto 5000 (ia_api.py)
+- scikit-learn: DecisionTreeClassifier y OneHotEncoder para recomendar planes de dieta
+- pandas / numpy: manipulación de datos 
+- joblib: persistencia del miedo (.pkl)
+- Dataset CSV para entrenamiento (datos_usuarios.cv)
+
+Hardware / IoT
+- Arduino (C++/.ino): Registro_huella.ino
+- Adafruit Fingerprint + SoftwareSerial: sensor biométrico de huella dactilar
+- R307: lector de huellas
+
+Aquitectura general:
+
+Arduino (huella) -> Node.js (API + BD) -> Flask/scikit-learn (IA de dietas) - Frontend web con autenticación por token/sesión, PIN e ID.
