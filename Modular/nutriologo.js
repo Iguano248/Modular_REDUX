@@ -14,6 +14,7 @@
 let pacientesCacheN = [];
 let graficaPesoN = null;
 let panelInicializadoN = false;
+let iaSmaeDetalle = null;
 
 // 🔐 Auth guard — controla la inicialización
 (async function() {
@@ -695,6 +696,69 @@ async function cargarDietasN() {
 }
 
 // --- Modal de dietas ---
+const GRUPOS_DIETA = ['desayuno', 'colacion1', 'comida', 'colacion2', 'cena'];
+
+function agregarFilaGrupo(grupo, alimento = '', gramos = '') {
+  const contenedor = $('grupo-' + grupo);
+  if (!contenedor) return;
+  const fila = document.createElement('div');
+  fila.className = 'fila-grupo-' + grupo;
+  fila.style.display = 'grid';
+  fila.style.gridTemplateColumns = '2fr 1fr auto';
+  fila.style.gap = '6px';
+  fila.innerHTML = `
+    <input type="text" class="input-alimento" placeholder="Ej: Pollo, Avena, Manzana" value="${escapeHTML(alimento)}" style="padding:6px; border-radius:6px; border:1px solid #333; background:#0f0f0f; color:#fff;">
+    <input type="number" class="input-gramos" min="0" step="1" placeholder="g" value="${escapeHTML(gramos)}" style="padding:6px; border-radius:6px; border:1px solid #333; background:#0f0f0f; color:#fff;">
+    <button type="button" class="btn-accion btn-eliminar" onclick="this.parentElement.remove()">X</button>
+  `;
+  contenedor.appendChild(fila);
+}
+
+function limpiarGruposDieta() {
+  GRUPOS_DIETA.forEach(g => {
+    const contenedor = $('grupo-' + g);
+    if (contenedor) contenedor.innerHTML = '';
+  });
+}
+
+function recolectarGruposDieta() {
+  const detalle = {};
+  GRUPOS_DIETA.forEach(g => {
+    const contenedor = $('grupo-' + g);
+    if (!contenedor) return;
+    const filas = contenedor.querySelectorAll('.fila-grupo-' + g);
+    const items = [];
+    filas.forEach(fila => {
+      const alimento = fila.querySelector('.input-alimento')?.value.trim();
+      const gramos = fila.querySelector('.input-gramos')?.value.trim();
+      if (alimento) {
+        items.push({ alimento, gramos: gramos || '' });
+      }
+    });
+    if (items.length > 0) {
+      detalle[g] = items;
+    }
+  });
+  return Object.keys(detalle).length > 0 ? detalle : null;
+}
+
+function cargarGruposDieta(detalleJson) {
+  limpiarGruposDieta();
+  if (!detalleJson) return;
+  try {
+    const detalle = typeof detalleJson === 'string' ? JSON.parse(detalleJson) : detalleJson;
+    GRUPOS_DIETA.forEach(g => {
+      if (detalle[g] && Array.isArray(detalle[g])) {
+        detalle[g].forEach(item => {
+          agregarFilaGrupo(g, item.alimento || '', item.gramos || '');
+        });
+      }
+    });
+  } catch (e) {
+    // Ignorar si no es JSON válido
+  }
+}
+
 function abrirModalDieta() {
   $('dietaN-id').value = '';
   $('dietaN-paciente').value = $('selPacienteDietaN') ? $('selPacienteDietaN').value : '';
@@ -705,6 +769,12 @@ function abrirModalDieta() {
   $('dietaN-colacion2').value = '';
   $('dietaN-cena').value = '';
   $('dietaN-recomendaciones').value = '';
+  limpiarGruposDieta();
+  agregarFilaGrupo('desayuno');
+  agregarFilaGrupo('colacion1');
+  agregarFilaGrupo('comida');
+  agregarFilaGrupo('colacion2');
+  agregarFilaGrupo('cena');
   $('modalDietaNTitulo').textContent = 'Nuevo Plan Alimenticio';
   $('modalDietaN').style.display = 'flex';
 }
@@ -724,6 +794,15 @@ async function editarDietaN(id) {
     $('dietaN-colacion2').value = d.colacion2 || '';
     $('dietaN-cena').value = d.cena || '';
     $('dietaN-recomendaciones').value = d.recomendaciones || '';
+    limpiarGruposDieta();
+    cargarGruposDieta(d.detalle_json);
+    // Asegurar que haya al menos una fila por grupo si no hay detalle_json
+    GRUPOS_DIETA.forEach(g => {
+      const contenedor = $('grupo-' + g);
+      if (contenedor && contenedor.querySelectorAll('.fila-grupo-' + g).length === 0) {
+        agregarFilaGrupo(g);
+      }
+    });
     $('modalDietaNTitulo').textContent = 'Editar Plan Alimenticio';
     $('modalDietaN').style.display = 'flex';
   } catch (err) {
@@ -734,6 +813,7 @@ async function editarDietaN(id) {
 async function guardarDietaN(event) {
   event.preventDefault();
   const id = $('dietaN-id').value;
+  const detalle = recolectarGruposDieta();
   const datos = {
     paciente_id: parseInt($('dietaN-paciente').value),
     fecha: $('dietaN-fecha').value,
@@ -742,7 +822,8 @@ async function guardarDietaN(event) {
     comida: $('dietaN-comida').value.trim(),
     colacion2: $('dietaN-colacion2').value.trim(),
     cena: $('dietaN-cena').value.trim(),
-    recomendaciones: $('dietaN-recomendaciones').value.trim()
+    recomendaciones: $('dietaN-recomendaciones').value.trim(),
+    detalle_json: detalle
   };
 
   if (!datos.paciente_id) {
@@ -791,8 +872,257 @@ function cerrarModalDietaN() {
 }
 
 // ============================================================
+// CALCULADORA SMAE
+// ============================================================
+let smaeUltimoResultado = null;
+
+function abrirCalculadoraSMAE() {
+  const pacienteId = $('selPacienteDietaN') ? $('selPacienteDietaN').value : '';
+  const paciente = pacientesCacheN.find(p => String(p.id) === String(pacienteId));
+  if (paciente) {
+    if (paciente.peso) $('smae-peso').value = paciente.peso;
+    if (paciente.objetivo) {
+      $('smae-objetivo').value = paciente.objetivo === 'mantener_peso' ? 'mantener' : paciente.objetivo;
+    }
+  }
+  $('modalSMAE').style.display = 'flex';
+}
+
+function cerrarCalculadoraSMAE() {
+  $('modalSMAE').style.display = 'none';
+}
+
+function calcularSMAE() {
+  try {
+    const calorias = parseFloat($('smae-calorias').value);
+    const peso = parseFloat($('smae-peso').value);
+    const objetivo = $('smae-objetivo').value;
+    let pctP = parseFloat($('smae-p').value);
+    let pctC = parseFloat($('smae-c').value);
+    const pctG = parseFloat($('smae-g').value);
+    if (isNaN(calorias) || calorias <= 0) {
+      mostrarToast('Ingresa calorías totales', 'warning');
+      return;
+    }
+    const protPeso = smaeProteinasPorPeso(peso, objetivo);
+    if ((peso > 0) !== Boolean(objetivo)) {
+      mostrarToast('Ingresa peso y objetivo juntos para calcular la proteína por peso', 'warning');
+      return;
+    }
+    let proteinasPorPeso = null;
+    if (protPeso) {
+      proteinasPorPeso = protPeso;
+      pctP = +((protPeso.gramosRecomendados * 4 / calorias) * 100).toFixed(1);
+      pctC = +(100 - pctP - pctG).toFixed(1);
+      if (pctC < 0) {
+        mostrarToast('Las calorías son muy bajas para la proteína requerida por peso', 'warning');
+        return;
+      }
+      $('smae-p').value = pctP;
+      $('smae-c').value = pctC;
+      $('smae-proteina-info').textContent =
+        `Proteína recomendada (${protPeso.etiqueta}): ${protPeso.gramosMin} - ${protPeso.gramosMax} g/día. ` +
+        `Usando ${protPeso.gramosRecomendados} g/día (${protPeso.gramosPorKgMin} - ${protPeso.gramosPorKgMax} g/kg de peso). ` +
+        `Carbohidratos ajustados automáticamente para mantener 100%.`;
+    } else {
+      $('smae-proteina-info').textContent = '';
+    }
+    if (Math.abs((pctP + pctC + pctG) - 100) > 0.1) {
+      mostrarToast('La suma de porcentajes debe ser 100%', 'warning');
+      return;
+    }
+    const macros = smaeCalcularMacros(calorias, pctP, pctC, pctG);
+    const equivalentes = smaeMacrosAEquivalentes(macros);
+    const seleccion = {
+      verdura: 'Brócoli',
+      fruta: 'Manzana',
+      cereal: 'Arroz cocido',
+      leguminosa: 'Frijol cocido',
+      proteina_aoa: 'Pechuga de pollo',
+      grasa: 'Aceite de oliva'
+    };
+    const gramosRes = smaeEquivalentesAGramos(equivalentes, seleccion);
+    smaeUltimoResultado = { macros, equivalentes, gramosRes, proteinasPorPeso };
+    const tbody = $('tablaSMAE');
+    tbody.innerHTML = '';
+    Object.keys(gramosRes).forEach(grupo => {
+      const r = gramosRes[grupo];
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td style="padding:6px;">${escapeHTML(r.grupo)}</td><td style="padding:6px;">${r.equivalentes}</td><td style="padding:6px;">${escapeHTML(r.alimento)}</td><td style="padding:6px;">${r.gramos} g</td>`;
+      tbody.appendChild(tr);
+    });
+    const desglose = smaeGenerarDesgloseMenu(gramosRes);
+    $('smae-desglose').value = JSON.stringify({ macros, equivalentes, gramosPorGrupo: gramosRes, menuPorComida: desglose, proteinasPorPeso }, null, 2);
+    mostrarToast('Cálculo SMAE realizado', 'success');
+  } catch (e) {
+    mostrarToast('Error al calcular SMAE', 'error');
+  }
+}
+
+function aplicarSMAEAlPlan() {
+  if (!smaeUltimoResultado) {
+    mostrarToast('Calcula primero con la calculadora SMAE', 'warning');
+    return;
+  }
+  const detalle = smaeGramosADetalleJSON(smaeUltimoResultado.gramosRes);
+  if (!detalle) {
+    mostrarToast('No hay datos para aplicar', 'warning');
+    return;
+  }
+  // Abrir modal de dieta si no está abierto
+  if ($('dietaN-paciente') && $('selPacienteDietaN')) {
+    $('dietaN-paciente').value = $('selPacienteDietaN').value;
+  }
+  if (!$('dietaN-fecha').value) {
+    $('dietaN-fecha').value = new Date().toISOString().split('T')[0];
+  }
+  limpiarGruposDieta();
+  const mapa = {
+    desayuno: 'desayuno',
+    colacion1: 'colacion1',
+    comida: 'comida',
+    colacion2: 'colacion2',
+    cena: 'cena'
+  };
+  Object.keys(detalle).forEach(comida => {
+    const contKey = mapa[comida];
+    if (!contKey) return;
+    detalle[comida].forEach(item => {
+      agregarFilaGrupo(contKey, item.alimento, item.gramos);
+    });
+  });
+  GRUPOS_DIETA.forEach(g => {
+    const contenedor = $('grupo-' + g);
+    if (contenedor && contenedor.querySelectorAll('.fila-grupo-' + g).length === 0) {
+      agregarFilaGrupo(g);
+    }
+  });
+  $('dietaN-id').value = '';
+  $('modalDietaNTitulo').textContent = 'Nuevo Plan Alimenticio (desde SMAE)';
+  $('modalDietaN').style.display = 'flex';
+  cerrarCalculadoraSMAE();
+  mostrarToast('Plan rellenado con equivalentes en gramos', 'success');
+}
+
+// ============================================================
+// GENERADOR DE PLATILLOS POR GRUPOS
+// ============================================================
+function abrirGeneradorPlatillos() {
+  if ($('dietaN-paciente') && $('selPacienteDietaN')) {
+    $('dietaN-paciente').value = $('selPacienteDietaN').value;
+  }
+  // Llenar selects
+  const fill = (id, arr, includeEmpty) => {
+    const sel = $(id);
+    if (!sel) return;
+    sel.innerHTML = '';
+    if (includeEmpty) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'Ninguna';
+      sel.appendChild(opt);
+    }
+    (arr || []).forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a.alimento;
+      opt.textContent = a.alimento + ' (' + a.grupo + ' - ' + a.gBase + 'g)';
+      sel.appendChild(opt);
+    });
+  };
+  fill('plat-proteina', SMAE_MIXER.proteinas);
+  fill('plat-cereal', SMAE_MIXER.cereales);
+  fill('plat-leguminosa', SMAE_MIXER.leguminosas, true);
+  fill('plat-verdura', SMAE_MIXER.verduras);
+  fill('plat-fruta', SMAE_MIXER.frutas, true);
+  fill('plat-grasa', SMAE_MIXER.grasas);
+  $('plat-previsual').innerHTML = '';
+  $('modalPlatillos').style.display = 'flex';
+}
+
+function cerrarGeneradorPlatillos() {
+  $('modalPlatillos').style.display = 'none';
+}
+
+function previsualizarPlatillo() {
+  const res = generarMenuConGrupos({
+    tipoComida: $('plat-tipo').value,
+    proteina: $('plat-proteina').value,
+    cereal: $('plat-cereal').value,
+    verdura: $('plat-verdura').value,
+    leguminosa: $('plat-leguminosa').value || null,
+    fruta: $('plat-fruta').value || null,
+    grasa: $('plat-grasa').value
+  });
+  let html = '<b>Platillo sugerido con gramos:</b><br>';
+  res.items.forEach(i => {
+    html += '- ' + escapeHTML(i.alimento) + ' <b>' + i.gramos + 'g</b> <span style="color:#aaa;">[' + i.grupo.replace('_aoa','').replace('proteina','proteína').replace('cereal','carbohidratos').replace('verdura','verduras').replace('fruta','frutas').replace('leguminosa','leguminosas').replace('grasa','grasas') + ']</span><br>';
+  });
+  $('plat-previsual').innerHTML = html;
+  window.__platilloActual = res;
+}
+
+function aplicarPlatilloAlPlan() {
+  if (!window.__platilloActual) {
+    mostrarToast('Previsualiza primero el platillo', 'warning');
+    return;
+  }
+  if ($('dietaN-paciente') && $('selPacienteDietaN')) {
+    $('dietaN-paciente').value = $('selPacienteDietaN').value;
+  }
+  if (!$('dietaN-fecha').value) {
+    $('dietaN-fecha').value = new Date().toISOString().split('T')[0];
+  }
+  const tipo = $('plat-tipo').value;
+  const mapa = { desayuno: 'desayuno', colacion1: 'colacion1', comida: 'comida', colacion2: 'colacion2', cena: 'cena' };
+  const contKey = mapa[tipo];
+  if (contKey) {
+    window.__platilloActual.items.forEach(item => {
+      agregarFilaGrupo(contKey, item.alimento, item.gramos);
+    });
+  }
+  $('dietaN-id').value = '';
+  $('modalDietaNTitulo').textContent = 'Nuevo Plan Alimenticio (desde Generador de Platillos)';
+  $('modalDietaN').style.display = 'flex';
+  cerrarGeneradorPlatillos();
+  mostrarToast('Platillo agregado con grupos y gramos', 'success');
+}
+
+// ============================================================
 // 5b. GENERAR DIETA CON IA
 // ============================================================
+
+// Convierte el menú de texto que devuelve la IA en el detalle estructurado
+// por comida. Así el detalle guardado siempre coincide con los platillos
+// mostrados (antes se generaba un SMAE fijo con pollo/arroz que no tenía
+// relación con el menú real).
+function detalleDesdePlanIA(plan) {
+  if (!plan) return null;
+  const mapa = {
+    desayuno: plan.desayuno,
+    colacion1: plan.colacion_1,
+    comida: plan.comida,
+    colacion2: plan.colacion_2,
+    cena: plan.cena
+  };
+  const detalle = {};
+  Object.keys(mapa).forEach(grupo => {
+    const texto = mapa[grupo];
+    if (!texto) return;
+    // Separar solo cuando el siguiente fragmento empieza con "N g de ",
+    // para no partir descripciones como "Coliflor, zanahoria y ejote".
+    const items = String(texto)
+      .split(/,\s*(?=\d+(?:[.,]\d+)?\s*g\s+de\s)/i)
+      .map(t => t.trim())
+      .filter(Boolean)
+      .map(item => {
+        const m = item.match(/^(\d+(?:[.,]\d+)?)\s*g\s+de\s+(.+)$/i);
+        if (m) return { alimento: m[2].trim(), gramos: m[1].replace(',', '.') };
+        return { alimento: item, gramos: '' };
+      });
+    if (items.length > 0) detalle[grupo] = items;
+  });
+  return Object.keys(detalle).length > 0 ? detalle : null;
+}
 
 async function generarDietaIA() {
   const pacienteId = $('selPacienteDietaN').value;
@@ -832,6 +1162,10 @@ async function generarDietaIA() {
     $('genDieta-cena').value = resultado.plan.cena || '';
     $('genDieta-recomendaciones').value = 'Tipo de dieta: ' + (resultado.tipo || 'personalizada');
 
+    // Construir el detalle estructurado a partir del menú real generado
+    // (antes se usaba un SMAE fijo con pollo/arroz que no coincidía con el menú).
+    iaSmaeDetalle = detalleDesdePlanIA(resultado.plan);
+
     $('panelGenerarDietaIA').style.display = 'block';
   }).catch(err => {
     mostrarToast('Error al generar dieta: ' + err.message, 'error');
@@ -850,7 +1184,8 @@ async function guardarDietaDefinitiva() {
     comida: $('genDieta-comida').value.trim(),
     colacion2: $('genDieta-colacion2').value.trim(),
     cena: $('genDieta-cena').value.trim(),
-    recomendaciones: $('genDieta-recomendaciones').value.trim()
+    recomendaciones: $('genDieta-recomendaciones').value.trim(),
+    detalle_json: iaSmaeDetalle || null
   };
 
   await withLoading(document.querySelector('#panelGenerarDietaIA .btn-guardar'), 'Guardando...', async () => {
@@ -876,6 +1211,7 @@ function cerrarPanelGenerarDieta() {
   ['genDieta-desayuno', 'genDieta-colacion1', 'genDieta-comida', 'genDieta-colacion2', 'genDieta-cena', 'genDieta-recomendaciones'].forEach(id => {
     $(id).value = '';
   });
+  iaSmaeDetalle = null;
 }
 
 // ============================================================

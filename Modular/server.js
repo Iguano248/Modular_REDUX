@@ -96,6 +96,22 @@ function requireAuth(req, res, next) {
   next();
 }
 
+function requireAdmin(req, res, next) {
+  const token = req.query.token || (req.headers.authorization && req.headers.authorization.replace('Bearer ', ''));
+  const user = obtenerSesion(token);
+  if (!user) {
+    console.log(`[Auth] 401 - Admin requerido - path=${req.path} token=${token ? token.slice(0, 8) + '...' : 'ninguno'}`);
+    return res.status(401).json({ error: 'No autorizado. Inicia sesión primero.' });
+  }
+  if (user.role !== 'admin') {
+    console.log(`[Auth] 403 - Acceso denegado (no admin) - path=${req.path} user=${user.nombre || user.username || user.id || 'desconocido'}`);
+    return res.status(403).json({ error: 'Acceso denegado. Se requieren permisos de administrador.' });
+  }
+  req.user = user;
+  req.token = token;
+  next();
+}
+
 // 🧾 TABLAS
 db.serialize(() => {
 
@@ -122,6 +138,7 @@ db.serialize(() => {
   // Migración para DBs existentes
   db.run("ALTER TABLE usuarios ADD COLUMN ingredientes_evitar TEXT", () => {});
   db.run("ALTER TABLE usuarios ADD COLUMN sexo TEXT DEFAULT 'no_definido'", () => {});
+  db.run("ALTER TABLE dietas ADD COLUMN detalle_json TEXT", () => {});
 
   db.run(`
   CREATE TABLE IF NOT EXISTS medicos (
@@ -280,13 +297,25 @@ app.post('/registro', (req, res) => {
   if (isNaN(id) || id <= 0) return res.status(400).json({ error: "ID inválido" });
   if (isNaN(edad) || edad < 1 || edad > 120) return res.status(400).json({ error: "Edad inválida" });
   if (isNaN(peso) || peso < 20 || peso > 500) return res.status(400).json({ error: "Peso inválido" });
-  if (isNaN(estatura) || estatura < 0.5 || estatura > 2.5) return res.status(400).json({ error: "Estatura inválida" });
+
+  let estaturaStr = String(estatura).trim().replace(',', '.');
+  let estaturaNum = parseFloat(estaturaStr);
+  if (isNaN(estaturaNum)) return res.status(400).json({ error: "Estatura inválida" });
+
+  // Normalizar: si viene en cm (100-250) o mayor a 3 -> convertir a metros
+  if (estaturaNum >= 100 && estaturaNum <= 250) {
+    estaturaNum = estaturaNum / 100;
+  } else if (estaturaNum > 3) {
+    estaturaNum = estaturaNum / 100;
+  }
+
+  if (estaturaNum < 0.5 || estaturaNum > 2.5) return res.status(400).json({ error: "Estatura inválida" });
 
   db.run(`
     INSERT INTO usuarios 
     (id, nombre, edad, peso, estatura, actividad, patologias, objetivo, ingredientes_evitar, sexo) 
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, nombre, edad, peso, estatura, actividad, patologias || '', objetivo, ingredientes_evitar || '', sexo || 'no_definido'],
+    [id, nombre, edad, peso, estaturaNum, actividad, patologias || '', objetivo, ingredientes_evitar || '', sexo || 'no_definido'],
     (err) => {
       if (err) return res.status(500).json({ error: "Error al registrar: " + err.message });
       res.json({ mensaje: "Usuario registrado" });
@@ -319,7 +348,7 @@ app.post('/login-pin', (req, res) => {
         return res.status(401).json({ error: "ID o PIN incorrectos" });
       }
 
-      const token = crearSesion(row);
+      const token = crearSesion({ ...row, role: 'paciente' });
       console.log(`[Login PIN] Sesión creada para: ${row.nombre} (ID: ${row.id})`);
       res.json({ token });
     }
@@ -386,7 +415,7 @@ app.post('/login-session', (req, res) => {
     return res.json({ pending: true });
   }
 
-  const user = ultimoDetectado;
+  const user = { ...ultimoDetectado, role: 'paciente' };
   ultimoDetectado = null;
 
   const token = crearSesion(user);
@@ -496,7 +525,7 @@ app.get("/mis-citas", requireAuth, (req, res) => {
 // ============================================================
 // 📋 HISTORIAL DE CITAS — Panel de Administración
 // ============================================================
-app.get('/historial-citas', requireAuth, (req, res) => {
+app.get('/historial-citas', requireAdmin, (req, res) => {
   const { page, limit, offset } = paginate(req);
   const q = req.query.q;
   let baseQuery = `
@@ -532,7 +561,7 @@ app.get('/historial-citas', requireAuth, (req, res) => {
 // ============================================================
 // 🔄 REAGENDAR CITA
 // ============================================================
-app.put('/citas/:id', requireAuth, (req, res) => {
+app.put('/citas/:id', requireAdmin, (req, res) => {
   const { id } = req.params;
   const { medicoId, fecha } = req.body;
 
@@ -566,7 +595,7 @@ app.put('/citas/:id', requireAuth, (req, res) => {
 // ============================================================
 // 🗑️ ELIMINAR CITA GENERAL
 // ============================================================
-app.delete('/citas/:id', requireAuth, (req, res) => {
+app.delete('/citas/:id', requireAdmin, (req, res) => {
   const { id } = req.params;
 
   db.get("SELECT * FROM citas WHERE id = ?", [id], (err, row) => {
@@ -585,7 +614,7 @@ app.delete('/citas/:id', requireAuth, (req, res) => {
 // ============================================================
 
 // Obtener todas las citas de nutrición (con paginación)
-app.get('/nutricion/citas', requireAuth, (req, res) => {
+app.get('/nutricion/citas', requireAdmin, (req, res) => {
   const { page, limit, offset } = paginate(req);
   db.get("SELECT COUNT(*) AS total FROM citas_nutricion", [], (err, countRow) => {
     if (err) return res.status(500).json({ error: 'Error al contar citas' });
@@ -603,7 +632,7 @@ app.get('/nutricion/citas', requireAuth, (req, res) => {
 });
 
 // Obtener citas de nutrición de un paciente específico (con paginación)
-app.get('/nutricion/citas/:pacienteId', requireAuth, (req, res) => {
+app.get('/nutricion/citas/:pacienteId', requireAdmin, (req, res) => {
   const { page, limit, offset } = paginate(req);
   const pid = req.params.pacienteId;
   db.get("SELECT COUNT(*) AS total FROM citas_nutricion WHERE paciente_id = ?", [pid], (err, countRow) => {
@@ -623,7 +652,7 @@ app.get('/nutricion/citas/:pacienteId', requireAuth, (req, res) => {
 });
 
 // Crear una nueva cita de nutrición
-app.post('/nutricion/citas', requireAuth, (req, res) => {
+app.post('/nutricion/citas', requireAdmin, (req, res) => {
   const { paciente_id, fecha, hora, motivo, observaciones, peso, imc, estado } = req.body;
 
   if (!paciente_id || !fecha) {
@@ -654,7 +683,7 @@ app.post('/nutricion/citas', requireAuth, (req, res) => {
 });
 
 // Obtener una cita de nutrición por ID
-app.get('/nutricion/cita/:id', requireAuth, (req, res) => {
+app.get('/nutricion/cita/:id', requireAdmin, (req, res) => {
   db.get(`
     SELECT cn.*, u.nombre AS paciente_nombre
     FROM citas_nutricion cn
@@ -668,7 +697,7 @@ app.get('/nutricion/cita/:id', requireAuth, (req, res) => {
 });
 
 // Actualizar una cita de nutrición
-app.put('/nutricion/citas/:id', requireAuth, (req, res) => {
+app.put('/nutricion/citas/:id', requireAdmin, (req, res) => {
   const { id } = req.params;
   const { paciente_id, fecha, hora, motivo, observaciones, peso, imc, estado } = req.body;
 
@@ -699,7 +728,7 @@ app.put('/nutricion/citas/:id', requireAuth, (req, res) => {
 });
 
 // Eliminar una cita de nutrición
-app.delete('/nutricion/citas/:id', requireAuth, (req, res) => {
+app.delete('/nutricion/citas/:id', requireAdmin, (req, res) => {
   const { id } = req.params;
 
   db.get("SELECT * FROM citas_nutricion WHERE id = ?", [id], (err, row) => {
@@ -719,7 +748,7 @@ app.delete('/nutricion/citas/:id', requireAuth, (req, res) => {
 // Endpoint que devuelve el resumen de progreso de peso de un paciente
 // Extrae toda la información de la tabla citas_nutricion
 // Diseñado para ser consumido por gráficas futuras sin modificar el backend
-app.get('/progreso/:pacienteId', requireAuth, (req, res) => {
+app.get('/progreso/:pacienteId', requireAdmin, (req, res) => {
   const pacienteId = req.params.pacienteId;
 
   // Validar que el paciente exista
@@ -822,7 +851,7 @@ app.get('/progreso/:pacienteId', requireAuth, (req, res) => {
 // ============================================================
 
 // Registrar un peso del paciente (con IMC calculado a partir de su estatura)
-app.post('/peso', requireAuth, (req, res) => {
+app.post('/peso', requireAdmin, (req, res) => {
   const { paciente_id, fecha, peso } = req.body;
 
   if (!paciente_id || !fecha || peso == null) {
@@ -854,7 +883,7 @@ app.post('/peso', requireAuth, (req, res) => {
 });
 
 // Listar los registros de peso independientes de un paciente
-app.get('/peso/:pacienteId', requireAuth, (req, res) => {
+app.get('/peso/:pacienteId', requireAdmin, (req, res) => {
   const pid = req.params.pacienteId;
   db.all(
     "SELECT id, paciente_id, fecha, peso, imc FROM registros_peso WHERE paciente_id = ? ORDER BY fecha DESC, id DESC",
@@ -867,7 +896,7 @@ app.get('/peso/:pacienteId', requireAuth, (req, res) => {
 });
 
 // Eliminar un registro de peso independiente
-app.delete('/peso/:id', requireAuth, (req, res) => {
+app.delete('/peso/:id', requireAdmin, (req, res) => {
   db.run("DELETE FROM registros_peso WHERE id = ?", [req.params.id], function (err) {
     if (err) return res.status(500).json({ error: 'Error al eliminar registro de peso' });
     res.json({ success: true, message: 'Registro de peso eliminado' });
@@ -879,7 +908,7 @@ app.delete('/peso/:id', requireAuth, (req, res) => {
 // ============================================================
 
 // Obtener todos los planes alimenticios de un paciente específico (con paginación)
-app.get('/dietas/:pacienteId', requireAuth, (req, res) => {
+app.get('/dietas/:pacienteId', requireAdmin, (req, res) => {
   const { page, limit, offset } = paginate(req);
   const pid = req.params.pacienteId;
   db.get("SELECT COUNT(*) AS total FROM dietas WHERE paciente_id = ?", [pid], (err, countRow) => {
@@ -899,8 +928,8 @@ app.get('/dietas/:pacienteId', requireAuth, (req, res) => {
 });
 
 // Crear un nuevo plan alimenticio
-app.post('/dietas', requireAuth, (req, res) => {
-  const { paciente_id, fecha, desayuno, colacion1, comida, colacion2, cena, recomendaciones } = req.body;
+app.post('/dietas', requireAdmin, (req, res) => {
+  const { paciente_id, fecha, desayuno, colacion1, comida, colacion2, cena, recomendaciones, detalle_json } = req.body;
 
   if (!paciente_id) {
     return res.status(400).json({ error: 'El paciente es requerido' });
@@ -910,9 +939,18 @@ app.post('/dietas', requireAuth, (req, res) => {
     if (err) return res.status(500).json({ error: 'Error del servidor' });
     if (!user) return res.status(404).json({ error: 'Paciente no encontrado' });
 
+    let detalleJsonStr = null;
+    if (detalle_json) {
+      try {
+        detalleJsonStr = typeof detalle_json === 'string' ? detalle_json : JSON.stringify(detalle_json);
+      } catch (e) {
+        detalleJsonStr = null;
+      }
+    }
+
     db.run(`
-      INSERT INTO dietas (paciente_id, fecha, desayuno, colacion1, comida, colacion2, cena, recomendaciones)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO dietas (paciente_id, fecha, desayuno, colacion1, comida, colacion2, cena, recomendaciones, detalle_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       paciente_id,
       fecha || new Date().toISOString().split('T')[0],
@@ -921,7 +959,8 @@ app.post('/dietas', requireAuth, (req, res) => {
       comida || '',
       colacion2 || '',
       cena || '',
-      recomendaciones || ''
+      recomendaciones || '',
+      detalleJsonStr
     ], function (err) {
       if (err) return res.status(500).json({ error: 'Error al crear plan: ' + err.message });
       res.json({ success: true, id: this.lastID, message: 'Plan alimenticio creado correctamente' });
@@ -929,8 +968,25 @@ app.post('/dietas', requireAuth, (req, res) => {
   });
 });
 
+// Obtener dieta del paciente autenticado (panel de paciente)
+app.get('/dieta', requireAuth, (req, res) => {
+  const user = req.user;
+  if (!user || !user.id) {
+    return res.json({ plan: null });
+  }
+  db.get(
+    `SELECT * FROM dietas WHERE paciente_id = ? ORDER BY fecha DESC, id DESC LIMIT 1`,
+    [user.id],
+    (err, row) => {
+      if (err) return res.status(500).json({ error: 'Error al obtener dieta' });
+      if (!row) return res.json({ plan: null });
+      res.json({ plan: row });
+    }
+  );
+});
+
 // Obtener un plan alimenticio por ID
-app.get('/dieta/:id', requireAuth, (req, res) => {
+app.get('/dieta/:id', requireAdmin, (req, res) => {
   db.get(`
     SELECT d.*, u.nombre AS paciente_nombre
     FROM dietas d
@@ -944,28 +1000,42 @@ app.get('/dieta/:id', requireAuth, (req, res) => {
 });
 
 // Actualizar un plan alimenticio existente
-app.put('/dietas/:id', requireAuth, (req, res) => {
+app.put('/dietas/:id', requireAdmin, (req, res) => {
   const { id } = req.params;
-  const { paciente_id, fecha, desayuno, colacion1, comida, colacion2, cena, recomendaciones } = req.body;
+  const { paciente_id, fecha, desayuno, colacion1, comida, colacion2, cena, recomendaciones, detalle_json } = req.body;
 
   db.get("SELECT * FROM dietas WHERE id = ?", [id], (err, row) => {
     if (err) return res.status(500).json({ error: 'Error del servidor' });
     if (!row) return res.status(404).json({ error: 'Plan no encontrado' });
 
+    let detalleJsonStr;
+    if (detalle_json === undefined) {
+      detalleJsonStr = row.detalle_json;
+    } else if (detalle_json === null || detalle_json === '') {
+      detalleJsonStr = null;
+    } else {
+      try {
+        detalleJsonStr = typeof detalle_json === 'string' ? detalle_json : JSON.stringify(detalle_json);
+      } catch (e) {
+        detalleJsonStr = row.detalle_json;
+      }
+    }
+
     db.run(`
       UPDATE dietas SET
         paciente_id = ?, fecha = ?, desayuno = ?, colacion1 = ?,
-        comida = ?, colacion2 = ?, cena = ?, recomendaciones = ?
+        comida = ?, colacion2 = ?, cena = ?, recomendaciones = ?, detalle_json = ?
       WHERE id = ?
     `, [
-      paciente_id || row.paciente_id,
-      fecha || row.fecha,
+      paciente_id !== undefined ? paciente_id : row.paciente_id,
+      fecha !== undefined ? fecha : row.fecha,
       desayuno !== undefined ? desayuno : row.desayuno,
       colacion1 !== undefined ? colacion1 : row.colacion1,
       comida !== undefined ? comida : row.comida,
       colacion2 !== undefined ? colacion2 : row.colacion2,
       cena !== undefined ? cena : row.cena,
       recomendaciones !== undefined ? recomendaciones : row.recomendaciones,
+      detalleJsonStr,
       id
     ], function (err) {
       if (err) return res.status(500).json({ error: 'Error al actualizar plan' });
@@ -975,7 +1045,7 @@ app.put('/dietas/:id', requireAuth, (req, res) => {
 });
 
 // Eliminar un plan alimenticio
-app.delete('/dietas/:id', requireAuth, (req, res) => {
+app.delete('/dietas/:id', requireAdmin, (req, res) => {
   const { id } = req.params;
 
   db.get("SELECT * FROM dietas WHERE id = ?", [id], (err, row) => {
@@ -992,7 +1062,7 @@ app.delete('/dietas/:id', requireAuth, (req, res) => {
 // ============================================================
 // 🤖 API BRIDGE: GENERAR DIETA CON IA
 // ============================================================
-app.post('/api/generar-dieta-ia', requireAuth, async (req, res) => {
+app.post('/api/generar-dieta-ia', requireAdmin, async (req, res) => {
   try {
     const response = await fetch(IA_API_URL, {
       method: 'POST',
@@ -1048,7 +1118,7 @@ app.get('/dieta', async (req, res) => {
 // 👷‍♂️ ENDPOINTS PARA EL PANEL DE ADMINISTRACION DE PACIENTES
 // ============================================================
 // Devuelve todos los pacientes registrados (con paginación)
-app.get('/usuarios', requireAuth, (req, res) => {
+app.get('/usuarios', requireAdmin, (req, res) => {
   if (req.query.all === 'true') {
     db.all("SELECT * FROM usuarios ORDER BY id", [], (err, rows) => {
       if (err) return res.status(500).json({ error: 'Error al obtener usuarios' });
@@ -1067,7 +1137,7 @@ app.get('/usuarios', requireAuth, (req, res) => {
 });
 
 // Busca pacientes por nombre (parcial) o ID exacto (con paginación)
-app.get('/usuarios/buscar', requireAuth, (req, res) => {
+app.get('/usuarios/buscar', requireAdmin, (req, res) => {
   const q = req.query.q;
 
   if (!q) {
@@ -1100,7 +1170,7 @@ app.get('/usuarios/buscar', requireAuth, (req, res) => {
 // ============================================================
 // ✏️ EDITAR PACIENTE
 // ============================================================
-app.put('/usuario/:id', requireAuth, (req, res) => {
+app.put('/usuario/:id', requireAdmin, (req, res) => {
   const id = req.params.id;
   const { nombre, edad, peso, estatura, actividad, patologias, objetivo, ingredientes_evitar, sexo } = req.body;
 
@@ -1113,13 +1183,30 @@ app.put('/usuario/:id', requireAuth, (req, res) => {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
+    let estaturaFinal = row.estatura;
+    if (estatura !== undefined && estatura !== null && estatura !== '') {
+      let estStr = String(estatura).trim().replace(',', '.');
+      let est = parseFloat(estStr);
+      if (isNaN(est)) return res.status(400).json({ error: 'Estatura inválida' });
+
+      // Normalizar: aceptar cm (100-250) o valores > 3
+      if (est >= 100 && est <= 250) {
+        est = est / 100;
+      } else if (est > 3) {
+        est = est / 100;
+      }
+
+      if (est < 0.5 || est > 2.5) return res.status(400).json({ error: 'Estatura inválida' });
+      estaturaFinal = est;
+    }
+
     db.run(`
       UPDATE usuarios SET
         nombre = ?, edad = ?, peso = ?, estatura = ?,
         actividad = ?, patologias = ?, objetivo = ?, ingredientes_evitar = ?, sexo = ?
       WHERE id = ?
     `,
-      [nombre, edad, peso, estatura, actividad, patologias || '', objetivo, ingredientes_evitar || '', sexo || row.sexo || 'no_definido', id],
+      [nombre, edad, peso, estaturaFinal, actividad, patologias || '', objetivo, ingredientes_evitar || '', sexo || row.sexo || 'no_definido', id],
       function (err) {
         if (err) {
           return res.status(500).json({ error: 'Error al actualizar usuario' });
@@ -1134,7 +1221,7 @@ app.put('/usuario/:id', requireAuth, (req, res) => {
 // ============================================================
 // 🗑️ ELIMINAR PACIENTE
 // ============================================================
-app.delete('/usuario/:id', requireAuth, (req, res) => {
+app.delete('/usuario/:id', requireAdmin, (req, res) => {
   const id = req.params.id;
 
   // Validar que el usuario exista

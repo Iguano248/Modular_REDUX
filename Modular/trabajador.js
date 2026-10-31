@@ -93,6 +93,15 @@ async function buscarPacientes() {
     return;
   }
 
+  // Validar que si es un ID, solo contenga dígitos
+  if (/\d/.test(q) && !/^\d+$/.test(q)) {
+    mostrarError('El ID debe contener solo números');
+    cuerpoTabla.innerHTML = `<tr><td colspan="9" class="loading-msg">Búsqueda inválida. Solo se permiten números al buscar por ID.</td></tr>`;
+    crearPagState('pagPacientes');
+    renderPaginacion('pagPacientes', 'pagPacientes', buscarPacientes);
+    return;
+  }
+
   ocultarError();
   cuerpoTabla.innerHTML = `<tr><td colspan="9" class="loading-msg">Buscando...</td></tr>`;
   crearPagState('pagPacientes');
@@ -182,11 +191,29 @@ async function guardarEdicion(event) {
   ocultarError();
 
   const id = $('edit-id').value;
+  
+  // Normalizar estatura igual que en el backend
+  let estaturaStr = String($('edit-estatura').value).trim().replace(',', '.').replace(/cm/gi, '');
+  let estaturaNum = parseFloat(estaturaStr);
+  if (isNaN(estaturaNum)) {
+    mostrarError('Estatura inválida');
+    return;
+  }
+  if (estaturaNum >= 100 && estaturaNum <= 250) {
+    estaturaNum = estaturaNum / 100;
+  } else if (estaturaNum > 3) {
+    estaturaNum = estaturaNum / 100;
+  }
+  if (estaturaNum < 0.5 || estaturaNum > 2.5) {
+    mostrarError('Estatura inválida');
+    return;
+  }
+
   const datos = {
     nombre: $('edit-nombre').value.trim(),
     edad: parseInt($('edit-edad').value),
     peso: parseFloat($('edit-peso').value),
-    estatura: parseFloat($('edit-estatura').value),
+    estatura: estaturaNum,
     actividad: $('edit-actividad').value,
     patologias: $('edit-patologias').value.trim(),
     objetivo: $('edit-objetivo').value,
@@ -279,6 +306,16 @@ async function buscarHistorialCitas() {
     cargarHistorialCitas();
     return;
   }
+
+  // Validar que si es un ID, solo contenga dígitos
+  if (/\d/.test(q) && !/^\d+$/.test(q)) {
+    mostrarError('El ID debe contener solo números');
+    cuerpoTablaCitas.innerHTML = `<tr><td colspan="6" class="loading-msg">Búsqueda inválida. Solo se permiten números al buscar por ID.</td></tr>`;
+    crearPagState('pagHistorialCitas');
+    renderPaginacion('pagHistorialCitas', 'pagHistorialCitas', buscarHistorialCitas);
+    return;
+  }
+
   cuerpoTablaCitas.innerHTML = `<tr><td colspan="6" class="loading-msg">Buscando...</td></tr>`;
   crearPagState('pagHistorialCitas');
   try {

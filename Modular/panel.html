@@ -35,6 +35,7 @@
 </div>
 
 <script src="shared.js"></script>
+<script src="smae.js"></script>
 <script>
 const API = API_BASE;
 const TOKEN = localStorage.getItem('sessionToken');
@@ -48,7 +49,10 @@ async function fetchAuth(url, options = {}) {
   const sep = url.includes('?') ? '&' : '?';
   const res = await fetch(url + sep + 'token=' + encodeURIComponent(TOKEN), options);
   if (res.status === 401) {
+    if (window.__sesionExpiradaPanel) return res;
+    window.__sesionExpiradaPanel = true;
     localStorage.removeItem('sessionToken');
+    alert('Sesión expirada. Vuelve a iniciar sesión.');
     window.location.href = "index.html";
     throw new Error('Sesión expirada');
   }
@@ -75,6 +79,55 @@ async function cargarUsuario() {
 }
 
 // 🍽️ Dieta
+function renderizarDietaAgrupada(plan) {
+  const cont = document.getElementById('dieta');
+  if (!plan) { cont.textContent = 'Sin datos'; return; }
+
+  const comidas = [
+    { key: 'desayuno', titulo: 'Desayuno' },
+    { key: 'colacion1', titulo: 'Colación (Mañana)' },
+    { key: 'comida', titulo: 'Comida' },
+    { key: 'colacion2', titulo: 'Colación (Tarde)' },
+    { key: 'cena', titulo: 'Cena' }
+  ];
+
+  let html = '';
+
+  // PRIORIDAD 1: el menú de texto es el que guarda el nutriólogo / la IA.
+  // Es el dato vigente y siempre debe mostrarse primero.
+  comidas.forEach(g => {
+    if (plan[g.key]) {
+      html += '<h4>' + escapeHTML(g.titulo) + '</h4><p>' + escapeHTML(plan[g.key]) + '</p>';
+    }
+  });
+  if (plan.recomendaciones) {
+    html += '<h4>Recomendaciones</h4><p>' + escapeHTML(plan.recomendaciones) + '</p>';
+  }
+  if (html.trim()) { cont.innerHTML = html; return; }
+
+  // PRIORIDAD 2: detalle_json SOLO como respaldo para dietas viejas
+  // que no tienen los campos de texto.
+  if (plan.detalle_json) {
+    try {
+      const detalle = typeof plan.detalle_json === 'string' ? JSON.parse(plan.detalle_json) : plan.detalle_json;
+      comidas.forEach(g => {
+        if (detalle[g.key] && Array.isArray(detalle[g.key]) && detalle[g.key].length > 0) {
+          html += '<h4>' + escapeHTML(g.titulo) + '</h4><ul style="margin:6px 0 12px 18px;">';
+          detalle[g.key].forEach(item => {
+            const gramos = item.gramos ? ' - ' + escapeHTML(item.gramos) + ' g' : '';
+            html += '<li>' + escapeHTML(item.alimento || '') + gramos + '</li>';
+          });
+          html += '</ul>';
+        }
+      });
+    } catch (e) {}
+  }
+  if (plan.recomendaciones) {
+    html += '<h4>Recomendaciones</h4><p>' + escapeHTML(plan.recomendaciones) + '</p>';
+  }
+  cont.innerHTML = html || 'Sin datos';
+}
+
 async function cargarDieta() {
   try {
     const res = await fetchAuth(API + '/dieta');
@@ -83,10 +136,7 @@ async function cargarDieta() {
       document.getElementById('dieta').textContent = 'Sin datos';
       return;
     }
-    document.getElementById('dieta').innerHTML =
-      '<h4>Desayuno</h4><p>' + escapeHTML(data.plan.desayuno) + '</p>' +
-      '<h4>Comida</h4><p>' + escapeHTML(data.plan.comida) + '</p>' +
-      '<h4>Cena</h4><p>' + escapeHTML(data.plan.cena) + '</p>';
+    renderizarDietaAgrupada(data.plan);
   } catch {
     document.getElementById('dieta').textContent = 'Error al cargar dieta';
   }

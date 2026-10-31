@@ -69,12 +69,18 @@ def recomendar_plan_final(edad: int, peso: float, estatura: float, nivel_activid
     """
     Función principal que combina Reglas Duras, Predicción de IA y Filtrado de Ingredientes.
     """
-    print(f"\n[INFO] Evaluando usuario: Objetivo='{objetivo}', Patologías='{patologias}', Evitar='{ingredientes_evitar}'")
+    # Normalizar entradas categóricas para evitar errores por formato
+    nivel_actividad_norm = str(nivel_actividad).strip().lower()
+    patologias_norm = str(patologias).strip().lower()
+    objetivo_norm = str(objetivo).strip().lower()
+    ingredientes_evitar_norm = str(ingredientes_evitar).strip()
+
+    print(f"\n[INFO] Evaluando usuario: Objetivo='{objetivo_norm}', Patologías='{patologias_norm}', Evitar='{ingredientes_evitar_norm}'")
     
     # =========================================================================
     # A. Aplicación de Reglas Duras (Aval Profesional Mínimo de Seguridad)
     # =========================================================================
-    if 'celiaquia' in patologias.lower():
+    if 'celiaquia' in patologias_norm:
         print("  [LOG] 🛡️ Regla Dura activada: Celiaquía detectada. Recomendación fija: 'sin_gluten'.")
         return 'sin_gluten'  # Override de la IA para seguridad
     
@@ -87,9 +93,9 @@ def recomendar_plan_final(edad: int, peso: float, estatura: float, nivel_activid
         'edad': edad,
         'peso': peso,
         'estatura': estatura,
-        'nivel_actividad': nivel_actividad,
-        'patologias': patologias,
-        'objetivo': objetivo
+        'nivel_actividad': nivel_actividad_norm,
+        'patologias': patologias_norm,
+        'objetivo': objetivo_norm
     }])
     
     # 2. Definición de las características (deben coincidir con el entrenamiento)
@@ -110,7 +116,7 @@ def recomendar_plan_final(edad: int, peso: float, estatura: float, nivel_activid
     # =========================================================================
     # C. Aplicación de Filtrado por Ingredientes (Despreciar)
     # =========================================================================
-    plan_final = filtrar_plan(prediccion_inicial, ingredientes_evitar)
+    plan_final = filtrar_plan(prediccion_inicial, ingredientes_evitar_norm)
     
     return plan_final
 

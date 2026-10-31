@@ -164,13 +164,20 @@ async function fetchWithAuth(url, options = {}) {
   return res;
 }
 
+let logoutForzado = false;
+
 function forzarLogout(mensaje) {
+  if (logoutForzado) return;
+  logoutForzado = true;
   clearToken();
   const overlay = $('loginOverlay');
   if (overlay) {
     overlay.style.display = 'flex';
-    if (mensaje) mostrarToast(mensaje, 'warning');
+    if (mensaje) {
+      try { mostrarToast(mensaje, 'warning'); } catch (e) {}
+    }
   } else {
+    alert(mensaje || 'Sesión expirada. Vuelve a iniciar sesión.');
     window.location.href = 'home.html';
   }
 }

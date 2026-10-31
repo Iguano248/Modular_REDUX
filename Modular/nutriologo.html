@@ -257,6 +257,8 @@
       <h1>Planes Alimenticios</h1>
       <div style="display:flex;gap:10px;">
         <button id="btnGenerarIA" onclick="generarDietaIA()" class="btn-accion btn-ia">Generar con IA</button>
+        <button onclick="abrirCalculadoraSMAE()" class="btn-accion" style="background:#2ecc71;">Calculadora SMAE</button>
+        <button onclick="abrirGeneradorPlatillos()" class="btn-accion" style="background:#3498db;">Generador de Platillos por Grupos</button>
         <button onclick="abrirModalDieta()" class="btn-accion btn-nuevo">+ Nuevo Plan</button>
         <button id="btnExportarPDF" onclick="exportarReportePDF()" class="btn-accion btn-pdf">Descargar PDF</button>
       </div>
@@ -501,7 +503,7 @@
 <!-- MODAL: NUEVO/EDITAR PLAN ALIMENTICIO -->
 <!-- ============================================================ -->
 <div id="modalDietaN" class="modal-overlay" style="display:none;">
-  <div class="modal-contenido">
+  <div class="modal-contenido" style="max-width: 1100px; max-height: 95vh; overflow-y: auto;">
     <div class="modal-header">
       <h2 id="modalDietaNTitulo">Nuevo Plan Alimenticio</h2>
       <span class="modal-cerrar" onclick="cerrarModalDietaN()">&times;</span>
@@ -519,26 +521,80 @@
           <label for="dietaN-fecha">Fecha</label>
           <input type="date" id="dietaN-fecha" required>
         </div>
-        <div class="form-group form-group-full">
-          <label for="dietaN-desayuno">Desayuno</label>
-          <textarea id="dietaN-desayuno" rows="2" placeholder="Ej: Avena con frutas, jugo natural..."></textarea>
+
+        <!-- DESAYUNO -->
+        <div class="form-group form-group-full" style="background:#1a1a1a; padding:10px; border-radius:8px; border:1px solid #333;">
+          <label style="color:#00d4ff; font-weight:bold;">Desayuno</label>
+          <div style="display:grid; grid-template-columns: 2fr 1fr; gap:6px; margin-top:6px;">
+            <div style="font-size:12px; color:#aaa;">Alimento</div>
+            <div style="font-size:12px; color:#aaa;">Cantidad (g)</div>
+          </div>
+          <div id="grupo-desayuno" style="display:flex; flex-direction:column; gap:4px;"></div>
+          <button type="button" class="btn-accion btn-editar" style="margin-top:6px;" onclick="agregarFilaGrupo('desayuno')">+ Agregar alimento</button>
         </div>
-        <div class="form-group form-group-full">
-          <label for="dietaN-colacion1">Colacion (Manana)</label>
-          <textarea id="dietaN-colacion1" rows="2" placeholder="Ej: Fruta con nueces, yogur..."></textarea>
+
+        <!-- COLACIÓN MAÑANA -->
+        <div class="form-group form-group-full" style="background:#1a1a1a; padding:10px; border-radius:8px; border:1px solid #333;">
+          <label style="color:#00d4ff; font-weight:bold;">Colación (Mañana)</label>
+          <div style="display:grid; grid-template-columns: 2fr 1fr; gap:6px; margin-top:6px;">
+            <div style="font-size:12px; color:#aaa;">Alimento</div>
+            <div style="font-size:12px; color:#aaa;">Cantidad (g)</div>
+          </div>
+          <div id="grupo-colacion1" style="display:flex; flex-direction:column; gap:4px;"></div>
+          <button type="button" class="btn-accion btn-editar" style="margin-top:6px;" onclick="agregarFilaGrupo('colacion1')">+ Agregar alimento</button>
         </div>
-        <div class="form-group form-group-full">
-          <label for="dietaN-comida">Comida</label>
-          <textarea id="dietaN-comida" rows="2" placeholder="Ej: Pechuga de pollo, arroz, ensalada..."></textarea>
+
+        <!-- COMIDA -->
+        <div class="form-group form-group-full" style="background:#1a1a1a; padding:10px; border-radius:8px; border:1px solid #333;">
+          <label style="color:#00d4ff; font-weight:bold;">Comida</label>
+          <div style="display:grid; grid-template-columns: 2fr 1fr; gap:6px; margin-top:6px;">
+            <div style="font-size:12px; color:#aaa;">Alimento</div>
+            <div style="font-size:12px; color:#aaa;">Cantidad (g)</div>
+          </div>
+          <div id="grupo-comida" style="display:flex; flex-direction:column; gap:4px;"></div>
+          <button type="button" class="btn-accion btn-editar" style="margin-top:6px;" onclick="agregarFilaGrupo('comida')">+ Agregar alimento</button>
         </div>
-        <div class="form-group form-group-full">
-          <label for="dietaN-colacion2">Colacion (Tarde)</label>
-          <textarea id="dietaN-colacion2" rows="2" placeholder="Ej: Barra de granola, te verde..."></textarea>
+
+        <!-- COLACIÓN TARDE -->
+        <div class="form-group form-group-full" style="background:#1a1a1a; padding:10px; border-radius:8px; border:1px solid #333;">
+          <label style="color:#00d4ff; font-weight:bold;">Colación (Tarde)</label>
+          <div style="display:grid; grid-template-columns: 2fr 1fr; gap:6px; margin-top:6px;">
+            <div style="font-size:12px; color:#aaa;">Alimento</div>
+            <div style="font-size:12px; color:#aaa;">Cantidad (g)</div>
+          </div>
+          <div id="grupo-colacion2" style="display:flex; flex-direction:column; gap:4px;"></div>
+          <button type="button" class="btn-accion btn-editar" style="margin-top:6px;" onclick="agregarFilaGrupo('colacion2')">+ Agregar alimento</button>
         </div>
-        <div class="form-group form-group-full">
-          <label for="dietaN-cena">Cena</label>
-          <textarea id="dietaN-cena" rows="2" placeholder="Ej: Pescado al horno, verduras al vapor..."></textarea>
+
+        <!-- CENA -->
+        <div class="form-group form-group-full" style="background:#1a1a1a; padding:10px; border-radius:8px; border:1px solid #333;">
+          <label style="color:#00d4ff; font-weight:bold;">Cena</label>
+          <div style="display:grid; grid-template-columns: 2fr 1fr; gap:6px; margin-top:6px;">
+            <div style="font-size:12px; color:#aaa;">Alimento</div>
+            <div style="font-size:12px; color:#aaa;">Cantidad (g)</div>
+          </div>
+          <div id="grupo-cena" style="display:flex; flex-direction:column; gap:4px;"></div>
+          <button type="button" class="btn-accion btn-editar" style="margin-top:6px;" onclick="agregarFilaGrupo('cena')">+ Agregar alimento</button>
         </div>
+
+        <div class="form-group form-group-full">
+          <details style="background:#1a1a1a; padding:10px; border-radius:8px; border:1px solid #333;">
+            <summary style="cursor:pointer; color:#aaa;">Mostrar campos antiguos (texto libre) - Opcional para compatibilidad</summary>
+            <div style="margin-top:10px;">
+              <label for="dietaN-desayuno">Desayuno (texto)</label>
+              <textarea id="dietaN-desayuno" rows="2"></textarea>
+              <label for="dietaN-colacion1" style="margin-top:6px; display:block;">Colación (Mañana) (texto)</label>
+              <textarea id="dietaN-colacion1" rows="2"></textarea>
+              <label for="dietaN-comida" style="margin-top:6px; display:block;">Comida (texto)</label>
+              <textarea id="dietaN-comida" rows="2"></textarea>
+              <label for="dietaN-colacion2" style="margin-top:6px; display:block;">Colación (Tarde) (texto)</label>
+              <textarea id="dietaN-colacion2" rows="2"></textarea>
+              <label for="dietaN-cena" style="margin-top:6px; display:block;">Cena (texto)</label>
+              <textarea id="dietaN-cena" rows="2"></textarea>
+            </div>
+          </details>
+        </div>
+
         <div class="form-group form-group-full">
           <label for="dietaN-recomendaciones">Recomendaciones Generales</label>
           <textarea id="dietaN-recomendaciones" rows="3" placeholder="Ej: Beber 2L de agua, evitar alimentos ultraprocesados..."></textarea>
@@ -555,6 +611,137 @@
 <div id="msgErrorN" class="error-msg"></div>
 
 <!-- Toast container -->
+<!-- ============================================================ -->
+<!-- MODAL: CALCULADORA SMAE -->
+<!-- ============================================================ -->
+<div id="modalSMAE" class="modal-overlay" style="display:none;">
+  <div class="modal-contenido" style="max-width: 1000px; max-height: 95vh; overflow-y: auto;">
+    <div class="modal-header">
+      <h2>Calculadora SMAE - Equivalentes a Gramos</h2>
+      <span class="modal-cerrar" onclick="cerrarCalculadoraSMAE()">&times;</span>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="smae-peso">Peso del paciente (kg)</label>
+        <input type="number" id="smae-peso" step="0.1" min="1" placeholder="Ej: 70">
+      </div>
+      <div class="form-group">
+        <label for="smae-objetivo">Objetivo (proteína por peso)</label>
+        <select id="smae-objetivo">
+          <option value="">Usar % de proteína manual</option>
+          <option value="ganar_musculo">Ganar masa muscular (1.4 - 2.2 g/kg)</option>
+          <option value="perder_peso">Perder peso (1.6 - 2.4 g/kg)</option>
+          <option value="mantener">Mantener peso (1.2 - 1.6 g/kg)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="smae-calorias">Calorías totales (kcal)</label>
+        <input type="number" id="smae-calorias" placeholder="Ej: 2000">
+      </div>
+      <div class="form-group">
+        <label for="smae-p">Proteínas (%)</label>
+        <input type="number" id="smae-p" value="25">
+      </div>
+      <div class="form-group">
+        <label for="smae-c">Carbohidratos (%)</label>
+        <input type="number" id="smae-c" value="50">
+      </div>
+      <div class="form-group">
+        <label for="smae-g">Grasas (%)</label>
+        <input type="number" id="smae-g" value="25">
+      </div>
+    </div>
+    <div id="smae-proteina-info" style="margin-top:8px; color:#2ecc71; font-size:0.9em;"></div>
+    <div class="modal-acciones" style="justify-content:flex-start;">
+      <button type="button" class="btn-guardar" onclick="calcularSMAE()">Calcular Equivalentes</button>
+    </div>
+    <div style="margin-top:12px; overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr style="background:#1a1a1a;">
+            <th style="padding:8px; text-align:left;">Grupo</th>
+            <th style="padding:8px; text-align:left;">Equivalentes</th>
+            <th style="padding:8px; text-align:left;">Alimento a utilizar</th>
+            <th style="padding:8px; text-align:left;">Gramos en báscula</th>
+          </tr>
+        </thead>
+        <tbody id="tablaSMAE"></tbody>
+      </table>
+    </div>
+    <div class="form-group form-group-full" style="margin-top:12px;">
+      <label>Desglose por comida (JSON/Texto)</label>
+      <textarea id="smae-desglose" rows="6" readonly></textarea>
+    </div>
+    <div class="modal-acciones">
+      <button type="button" class="btn-cancelar" onclick="cerrarCalculadoraSMAE()">Cerrar</button>
+      <button type="button" class="btn-guardar" onclick="aplicarSMAEAlPlan()">Aplicar al plan (rellenar por grupos)</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- MODAL: GENERADOR DE PLATILLOS POR GRUPOS -->
+<!-- ============================================================ -->
+<div id="modalPlatillos" class="modal-overlay" style="display:none;">
+  <div class="modal-contenido" style="max-width: 900px;">
+    <div class="modal-header">
+      <h2>Generador de Platillos - Por Grupos Alimenticios</h2>
+      <span class="modal-cerrar" onclick="cerrarGeneradorPlatillos()">&times;</span>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="plat-tipo">Comida</label>
+        <select id="plat-tipo">
+          <option value="desayuno">Desayuno</option>
+          <option value="colacion1">Colación (Mañana)</option>
+          <option value="comida">Comida</option>
+          <option value="colacion2">Colación (Tarde)</option>
+          <option value="cena">Cena</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="plat-proteina">Proteína / AOA</label>
+        <select id="plat-proteina"></select>
+      </div>
+      <div class="form-group">
+        <label for="plat-cereal">Cereales / Tubérculos</label>
+        <select id="plat-cereal"></select>
+      </div>
+      <div class="form-group">
+        <label for="plat-leguminosa">Leguminosas (opcional)</label>
+        <select id="plat-leguminosa">
+          <option value="">Ninguna</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="plat-verdura">Verduras</label>
+        <select id="plat-verdura"></select>
+      </div>
+      <div class="form-group">
+        <label for="plat-fruta">Fruta (opcional)</label>
+        <select id="plat-fruta">
+          <option value="">Ninguna</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="plat-grasa">Grasa</label>
+        <select id="plat-grasa"></select>
+      </div>
+    </div>
+    <div class="modal-acciones" style="justify-content:flex-start;">
+      <button type="button" class="btn-guardar" onclick="previsualizarPlatillo()">Previsualizar platillo con gramos</button>
+    </div>
+    <div style="margin-top:12px; background:#1a1a1a; padding:10px; border-radius:8px;">
+      <div style="color:#00d4ff; font-weight:bold; margin-bottom:6px;">Previsualización</div>
+      <div id="plat-previsual" style="color:#fff; line-height:1.8;"></div>
+    </div>
+    <div class="modal-acciones">
+      <button type="button" class="btn-cancelar" onclick="cerrarGeneradorPlatillos()">Cerrar</button>
+      <button type="button" class="btn-guardar" onclick="aplicarPlatilloAlPlan()">Agregar al plan (con grupos)</button>
+    </div>
+  </div>
+</div>
+
 <div id="toastContainer" class="toast-container"></div>
 
 <!-- ============================================================ -->
@@ -606,6 +793,8 @@
   <div class="rep-footer">Generado por el Sistema de Gestión de Pacientes — Clínica de Nutrición</div>
 </div>
 
+<script src="smae.js"></script>
+<script src="smae_mixer.js"></script>
 <script src="shared.js"></script>
 <script src="nutriologo.js"></script>
 
